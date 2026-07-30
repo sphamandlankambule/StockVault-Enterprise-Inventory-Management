@@ -1,17 +1,19 @@
 # StockVault / IMS Pro - Enterprise Inventory & Audit Management System
 
-An Enterprise Inventory & Audit Compliance Management System built with React, TypeScript, Tailwind CSS, and Node.js (with optional XAMPP Apache + MySQL / PHP support).
+An Enterprise Inventory & Audit Compliance Management System built with React 18, TypeScript, Tailwind CSS, and Express.js (with optional XAMPP Apache + MySQL / PHP support).
 
 ---
 
 ## 📋 Features
 
+- **Mobile-Friendly & Responsive UI**: Built with responsive layouts, fluid mobile navigation drawers, adaptable data grids, and touch-optimized digital signature canvases.
+- **Dedicated Low Stock & Reorder Center**: Centralized low-stock alert system featuring real-time batch depletion monitoring, category/severity filters, auto-calculated reorder deficits, estimated restock budgets, CSV export, and printable requisition forms.
 - **Multi-Department RBAC Scope**: Non-admin users are strictly scoped to view and manage inventory for their registered department. System Administrators (`ADMIN`) retain access across all departments.
 - **Financial Year Ledger**: Track stock dispatches, valuations, and low-stock alerts tied to active financial year contexts (e.g. `FY 2025-2026`).
-- **Dual Digital Signatures**: Secure stock out dispatches with dual signature verification (store keeper + recipient officer).
-- **Serial Number Tracking**: Batch and serialized item tracking with barcode/QR code generator.
+- **Dual Digital Signatures**: Secure stock out dispatches with dual signature verification (store keeper + recipient officer) on canvas.
+- **Serial Number & Batch Tracking**: Batch and serialized item tracking with barcode/QR code generator.
 - **Audit Logs**: Immutable system activity logging tracking user actions, IP logging, and timestamps.
-- **PHP & MySQL Integration Ready**: Native DDL schema & PHP REST API templates included for local XAMPP hosting.
+- **Production-Hardened Security**: Sanitized API responses (no plain passwords in state/payloads), role-based endpoint access control, and clean authentication workflows.
 
 ---
 
@@ -32,7 +34,7 @@ An Enterprise Inventory & Audit Compliance Management System built with React, T
    ```sql
    stockvault
    ```
-5. Click on the `stockvault` database, go to the **SQL** tab, and execute the database schema (from `src/data/mysqlSchema.ts` or copy from the **MySQL & PHP API** view in the app):
+5. Click on the `stockvault` database, go to the **SQL** tab, and execute the database schema:
 
    ```sql
    CREATE TABLE IF NOT EXISTS departments (
@@ -48,7 +50,7 @@ An Enterprise Inventory & Audit Compliance Management System built with React, T
        username VARCHAR(50) NOT NULL UNIQUE,
        full_name VARCHAR(100) NOT NULL,
        email VARCHAR(100) NOT NULL UNIQUE,
-       role ENUM('ADMIN', 'STORE_KEEPER', 'DEPT_OFFICER') NOT NULL,
+       role ENUM('ADMIN', 'STORE_KEEPER', 'DEPT_OFFICER', 'STAFF_RECEIVER') NOT NULL,
        department_id VARCHAR(50),
        is_active TINYINT(1) DEFAULT 1,
        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -60,6 +62,7 @@ An Enterprise Inventory & Audit Compliance Management System built with React, T
        name VARCHAR(100) NOT NULL,
        code VARCHAR(20) NOT NULL UNIQUE,
        description TEXT,
+       low_stock_threshold INT DEFAULT 5,
        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -159,44 +162,11 @@ An Enterprise Inventory & Audit Compliance Management System built with React, T
 
 ---
 
-### Step 3 (Optional): Hosting PHP Backend Scripts in XAMPP `htdocs`
-
-If you want to run direct PHP API endpoints alongside XAMPP Apache:
-
-1. Navigate to your XAMPP installation directory (usually `C:\xampp\htdocs\`).
-2. Create a folder named `stockvault`:
-   ```
-   C:\xampp\htdocs\stockvault\api\
-   ```
-3. Create a `db_config.php` file inside `C:\xampp\htdocs\stockvault\api\`:
-   ```php
-   <?php
-   $host = "localhost";
-   $user = "root";
-   $password = "";
-   $dbname = "stockvault";
-
-   $conn = new mysqli($host, $user, $password, $dbname);
-
-   if ($conn->connect_error) {
-       die(json_encode(["error" => "Database connection failed: " . $conn->connect_error]));
-   }
-   header('Content-Type: application/json');
-   ?>
-   ```
-4. Copy the PHP REST endpoints (available in the **MySQL & PHP API** view in the web app) such as `users.php`, `add_stock.php`, and `stock_out.php` into `C:\xampp\htdocs\stockvault\api\`.
-5. Test the PHP REST API endpoint in your browser or Postman:
-   ```
-   http://localhost/stockvault/api/users.php
-   ```
-
----
-
 ## 🔒 User Roles & Access Scope
 
-- **System Administrator (`ADMIN`)**: Access to all departments, system settings, financial year activations, and complete organization stock reports.
-- **Store Keeper (`STORE_KEEPER`)**: Restricted to their registered department for stock entry, stock dispatch, and inventory tracking.
-- **Department Officer (`DEPT_OFFICER`)**: Restricted to viewing and requesting dispatches for their assigned department.
+- **System Administrator (`ADMIN`)**: Access to all departments, system settings, financial year activations, user provisioning, and organization-wide stock reports.
+- **Store Keeper (`STORE_KEEPER`)**: Scoped to their registered department for stock entry, stock dispatch, low stock monitoring, and inventory tracking.
+- **Staff Receiver (`STAFF_RECEIVER`)**: Scoped to receiving and signing dispatches for their assigned department.
 
 ---
 
@@ -209,4 +179,5 @@ npm run build
 npm start
 ```
 
-The production build will output bundled assets in `dist/` ready to serve.
+The production build will bundle the backend server into `dist/server.cjs` and compile the frontend static assets ready to serve on port `3000`.
+
