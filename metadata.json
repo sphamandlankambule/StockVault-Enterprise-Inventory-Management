@@ -1,0 +1,6 @@
+{
+  "name": "StockVault Enterprise Inventory Management",
+  "description": "Enterprise-grade Inventory Management System with RBAC, Serialized Stock Tracking, Financial Year Separation, Dual Signatures, and Audit Logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
