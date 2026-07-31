@@ -1,8 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import mysql from 'mysql2/promise';
-import pg from 'pg';
 import {
   User,
   Department,
@@ -20,56 +18,45 @@ const currentDirname = typeof __dirname !== 'undefined' ? __dirname : process.cw
 
 const DB_ERROR_MESSAGE = "Database Connecion Failed";
 
+// All database connections and actions must go through PHP API files
 async function checkAndConnectDb(): Promise<boolean> {
-  const dbUrl = process.env.DATABASE_URL;
-  const dbHost = process.env.DB_HOST;
-  const dbUser = process.env.DB_USER;
-  const dbName = process.env.DB_NAME;
-
-  if (!dbUrl && (!dbHost || !dbUser || !dbName)) {
-    return false;
-  }
+  const phpApiUrl = process.env.PHP_API_BASE_URL || process.env.PHP_API_URL || 'http://localhost/stockvault/api';
 
   try {
-    if (dbUrl) {
-      if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
-        const pool = new pg.Pool({ connectionString: dbUrl });
-        await pool.query('SELECT 1');
-        await pool.end();
-      } else {
-        const pool = mysql.createPool(dbUrl);
-        await pool.query('SELECT 1');
-        await pool.end();
-      }
-    } else {
-      const dbType = (process.env.DB_TYPE || 'mysql').toLowerCase();
-      if (dbType === 'postgres' || dbType === 'postgresql') {
-        const pool = new pg.Pool({
-          host: dbHost,
-          user: dbUser,
-          password: process.env.DB_PASSWORD || '',
-          database: dbName,
-          port: Number(process.env.DB_PORT) || 5432
-        });
-        await pool.query('SELECT 1');
-        await pool.end();
-      } else {
-        const pool = mysql.createPool({
-          host: dbHost,
-          user: dbUser,
-          password: process.env.DB_PASSWORD || '',
-          database: dbName,
-          port: Number(process.env.DB_PORT) || 3306
-        });
-        await pool.query('SELECT 1');
-        await pool.end();
-      }
+    const cleanUrl = phpApiUrl.replace(/\/$/, '');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    // Primary connection test: check PHP db_config.php API endpoint
+    const response = await fetch(`${cleanUrl}/db_config.php`, {
+      method: 'GET',
+      signal: controller.signal
+    }).catch(() => null);
+    clearTimeout(timeoutId);
+
+    if (response && (response.ok || response.status === 200 || response.status === 400 || response.status === 403)) {
+      return true;
     }
-    return true;
+
+    // Secondary connection test: check PHP users.php API endpoint
+    const altController = new AbortController();
+    const altTimeoutId = setTimeout(() => altController.abort(), 3000);
+    const altResponse = await fetch(`${cleanUrl}/users.php`, {
+      method: 'GET',
+      headers: { 'X-User-Role': 'ADMIN' },
+      signal: altController.signal
+    }).catch(() => null);
+    clearTimeout(altTimeoutId);
+
+    if (altResponse && (altResponse.ok || altResponse.status === 200 || altResponse.status === 403)) {
+      return true;
+    }
   } catch (err) {
-    console.error("Database connection failed:", err);
-    return false;
+    console.error("PHP API database connection failed:", err);
   }
+
+  // Connection failed if PHP API files cannot be reached or fail to connect
+  return false;
 }
 
 async function startServer() {
