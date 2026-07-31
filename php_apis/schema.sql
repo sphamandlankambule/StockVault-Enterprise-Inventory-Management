@@ -52,11 +52,15 @@ CREATE TABLE IF NOT EXISTS `users` (
   FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Passwords (plain text => bcrypt $2y$10$ hash):
+-- Admin  => Admin@123  => $2y$10$HiSYb6f1bJKTzQ9thXmdfuiKvzpZnAgpTw1CYHuJLS3SezUzmKeva
+-- Keeper => Keeper@123 => $2y$10$19.XVz15w5pXswdxDuCWIe.wHZo8zGe5FoyWKcffD3/bUWFEg53OW
+-- Staff  => Staff@123  => $2y$10$BiuCHVJTzn3hb/pPJrfJZOKQFn9uSX9kV4rkY0V7uH.4rIFmdhFIq
 INSERT INTO `users` (`id`, `role_id`, `department_id`, `username`, `full_name`, `email`, `password_hash`, `status`) VALUES
-(1, 1, 1, 'Admin', 'David Sterling (System Director)', 'admin@stockvault.com', '$2y$10$wT8mQz/4k0Yg9cK7a1.AdminPassHash123', 'ACTIVE'),
-(2, 2, 2, 'Keeper', 'Marcus Vance (Chief Store Keeper)', 'marcus.vance@stockvault.com', '$2y$10$u8X.KeeperPassHash123', 'ACTIVE'),
-(3, 3, 3, 'Staff', 'Sarah Jenkins (Finance Lead Receiver)', 'sarah.jenkins@stockvault.com', '$2y$10$k9L.StaffPassHash123', 'ACTIVE')
-ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`);
+(1, 1, 1, 'Admin', 'David Sterling (System Director)', 'admin@stockvault.com', '$2y$10$HiSYb6f1bJKTzQ9thXmdfuiKvzpZnAgpTw1CYHuJLS3SezUzmKeva', 'ACTIVE'),
+(2, 2, 2, 'Keeper', 'Marcus Vance (Chief Store Keeper)', 'marcus.vance@stockvault.com', '$2y$10$19.XVz15w5pXswdxDuCWIe.wHZo8zGe5FoyWKcffD3/bUWFEg53OW', 'ACTIVE'),
+(3, 3, 3, 'Staff', 'Sarah Jenkins (Finance Lead Receiver)', 'sarah.jenkins@stockvault.com', '$2y$10$BiuCHVJTzn3hb/pPJrfJZOKQFn9uSX9kV4rkY0V7uH.4rIFmdhFIq', 'ACTIVE')
+ON DUPLICATE KEY UPDATE `password_hash` = VALUES(`password_hash`), `full_name` = VALUES(`full_name`);
 
 -- 4. Financial Years Table
 CREATE TABLE IF NOT EXISTS `financial_years` (

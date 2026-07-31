@@ -101,11 +101,12 @@ CREATE TABLE IF NOT EXISTS \`users\` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Seed Default Admin & System Users
+-- Passwords: Admin => Admin@123 | Keeper => Keeper@123 | Staff => Staff@123
 INSERT INTO \`users\` (\`id\`, \`role_id\`, \`department_id\`, \`username\`, \`full_name\`, \`email\`, \`password_hash\`, \`status\`) VALUES
-(1, 1, 1, 'Admin', 'David Sterling (System Director)', 'admin@stockvault.com', '$2y$10$wT8mQz/4k0Yg9cK7a1... Admin@123', 'ACTIVE'),
-(2, 2, 2, 'Keeper', 'Marcus Vance (Chief Store Keeper)', 'marcus.vance@stockvault.com', '$2y$10$u8X... Keeper@123', 'ACTIVE'),
-(3, 3, 3, 'Staff', 'Sarah Jenkins (Finance Lead Receiver)', 'sarah.jenkins@stockvault.com', '$2y$10$k9L... Staff@123', 'ACTIVE')
-ON DUPLICATE KEY UPDATE \`full_name\` = VALUES(\`full_name\`);
+(1, 1, 1, 'Admin', 'David Sterling (System Director)', 'admin@stockvault.com', '$2y$10$HiSYb6f1bJKTzQ9thXmdfuiKvzpZnAgpTw1CYHuJLS3SezUzmKeva', 'ACTIVE'),
+(2, 2, 2, 'Keeper', 'Marcus Vance (Chief Store Keeper)', 'marcus.vance@stockvault.com', '$2y$10$19.XVz15w5pXswdxDuCWIe.wHZo8zGe5FoyWKcffD3/bUWFEg53OW', 'ACTIVE'),
+(3, 3, 3, 'Staff', 'Sarah Jenkins (Finance Lead Receiver)', 'sarah.jenkins@stockvault.com', '$2y$10$BiuCHVJTzn3hb/pPJrfJZOKQFn9uSX9kV4rkY0V7uH.4rIFmdhFIq', 'ACTIVE')
+ON DUPLICATE KEY UPDATE \`password_hash\` = VALUES(\`password_hash\`), \`full_name\` = VALUES(\`full_name\`);
 
 -- ----------------------------------------------------------------------------
 -- Table 6: Stock Batches (Incoming Stock Lots)
