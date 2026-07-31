@@ -31,7 +31,11 @@ interface MasterDataViewProps {
   onUpdateFinancialYear?: (fyId: string, fyData: any) => Promise<void>;
   onDeleteFinancialYear?: (fyId: string) => Promise<void>;
   onCreateDepartment: (deptData: any) => Promise<void>;
+  onUpdateDepartment?: (deptId: string, deptData: any) => Promise<void>;
+  onDeleteDepartment?: (deptId: string) => Promise<void>;
   onCreateCategory: (catData: any) => Promise<void>;
+  onUpdateCategory?: (catId: string, catData: any) => Promise<void>;
+  onDeleteCategory?: (catId: string) => Promise<void>;
   onUpdateSettings: (settings: Partial<SystemSettings>) => Promise<void>;
 }
 
@@ -46,9 +50,15 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
   onUpdateFinancialYear,
   onDeleteFinancialYear,
   onCreateDepartment,
+  onUpdateDepartment,
+  onDeleteDepartment,
   onCreateCategory,
+  onUpdateCategory,
+  onDeleteCategory,
   onUpdateSettings
 }) => {
+  const isAdmin = currentUser.role === 'ADMIN';
+
   // Financial Year Form State
   const [fyYearCode, setFyYearCode] = useState('');
   const [fyStartDate, setFyStartDate] = useState('');
@@ -68,10 +78,24 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
   const [deptName, setDeptName] = useState('');
   const [deptBudget, setDeptBudget] = useState('');
 
+  // Edit Department State
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editDeptCode, setEditDeptCode] = useState('');
+  const [editDeptName, setEditDeptName] = useState('');
+  const [editDeptBudget, setEditDeptBudget] = useState('');
+  const [isUpdatingDept, setIsUpdatingDept] = useState(false);
+
   // Category Form State
   const [catCode, setCatCode] = useState('');
   const [catName, setCatName] = useState('');
   const [catThreshold, setCatThreshold] = useState<number>(5);
+
+  // Edit Category State
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editCatCode, setEditCatCode] = useState('');
+  const [editCatName, setEditCatName] = useState('');
+  const [editCatThreshold, setEditCatThreshold] = useState<number>(5);
+  const [isUpdatingCat, setIsUpdatingCat] = useState(false);
 
   // System & Currency Settings State
   const [companyName, setCompanyName] = useState(settings?.companyName || 'StockVault Enterprise Global');
@@ -214,28 +238,132 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
   const handleCreateDept = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deptCode || !deptName) return;
+    setErrorMsg(null);
     try {
       await onCreateDepartment({ code: deptCode, name: deptName, budgetCode: deptBudget });
       setDeptCode('');
       setDeptName('');
       setDeptBudget('');
       setFeedback('Department added successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorMsg(err.message || 'Failed to create department');
+    }
+  };
+
+  const handleStartEditDept = (dept: Department) => {
+    setEditingDeptId(dept.id);
+    setEditDeptCode(dept.code);
+    setEditDeptName(dept.name);
+    setEditDeptBudget(dept.budgetCode || '');
+  };
+
+  const handleCancelEditDept = () => {
+    setEditingDeptId(null);
+    setEditDeptCode('');
+    setEditDeptName('');
+    setEditDeptBudget('');
+  };
+
+  const handleSaveEditDept = async (deptId: string) => {
+    if (!editDeptCode || !editDeptName) return;
+    setIsUpdatingDept(true);
+    setErrorMsg(null);
+    try {
+      if (onUpdateDepartment) {
+        await onUpdateDepartment(deptId, {
+          code: editDeptCode,
+          name: editDeptName,
+          budgetCode: editDeptBudget
+        });
+        setEditingDeptId(null);
+        setFeedback('Department details updated successfully!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to update department');
+    } finally {
+      setIsUpdatingDept(false);
+    }
+  };
+
+  const handleDeleteDept = async (dept: Department) => {
+    if (!confirm(`Are you sure you want to delete Department '${dept.name}' (${dept.code})?`)) return;
+    setErrorMsg(null);
+    try {
+      if (onDeleteDepartment) {
+        await onDeleteDepartment(dept.id);
+        setFeedback(`Department '${dept.name}' deleted successfully.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to delete department');
     }
   };
 
   const handleCreateCat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!catCode || !catName) return;
+    setErrorMsg(null);
     try {
       await onCreateCategory({ code: catCode, name: catName, lowStockThreshold: catThreshold });
       setCatCode('');
       setCatName('');
       setCatThreshold(5);
       setFeedback('Category created successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorMsg(err.message || 'Failed to create category');
+    }
+  };
+
+  const handleStartEditCat = (cat: Category) => {
+    setEditingCatId(cat.id);
+    setEditCatCode(cat.code);
+    setEditCatName(cat.name);
+    setEditCatThreshold(cat.lowStockThreshold || 5);
+  };
+
+  const handleCancelEditCat = () => {
+    setEditingCatId(null);
+    setEditCatCode('');
+    setEditCatName('');
+    setEditCatThreshold(5);
+  };
+
+  const handleSaveEditCat = async (catId: string) => {
+    if (!editCatCode || !editCatName) return;
+    setIsUpdatingCat(true);
+    setErrorMsg(null);
+    try {
+      if (onUpdateCategory) {
+        await onUpdateCategory(catId, {
+          code: editCatCode,
+          name: editCatName,
+          lowStockThreshold: editCatThreshold
+        });
+        setEditingCatId(null);
+        setFeedback('Category details updated successfully!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to update category');
+    } finally {
+      setIsUpdatingCat(false);
+    }
+  };
+
+  const handleDeleteCat = async (cat: Category) => {
+    if (!confirm(`Are you sure you want to delete Category '${cat.name}' (${cat.code})?`)) return;
+    setErrorMsg(null);
+    try {
+      if (onDeleteCategory) {
+        await onDeleteCategory(cat.id);
+        setFeedback(`Category '${cat.name}' deleted successfully.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to delete category');
     }
   };
 
@@ -528,15 +656,90 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
             </button>
           </form>
 
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {departments.map((d) => (
-              <div key={d.id} className="p-2.5 bg-slate-800/80 rounded-lg text-xs flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-slate-200">{d.name}</span>
-                  <span className="text-[10px] text-slate-400 ml-2 font-mono">({d.code})</span>
+              editingDeptId === d.id ? (
+                <div key={d.id} className="p-2.5 bg-slate-800 rounded-lg space-y-2 text-xs border border-blue-500/50">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Code</label>
+                      <input
+                        type="text"
+                        value={editDeptCode}
+                        onChange={(e) => setEditDeptCode(e.target.value)}
+                        placeholder="Code"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Name</label>
+                      <input
+                        type="text"
+                        value={editDeptName}
+                        onChange={(e) => setEditDeptName(e.target.value)}
+                        placeholder="Name"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Budget Code</label>
+                      <input
+                        type="text"
+                        value={editDeptBudget}
+                        onChange={(e) => setEditDeptBudget(e.target.value)}
+                        placeholder="Budget Code"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCancelEditDept}
+                      className="px-2.5 py-1 bg-slate-700 text-slate-200 rounded hover:bg-slate-600 text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdatingDept}
+                      onClick={() => handleSaveEditDept(d.id)}
+                      className="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save</span>
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono">{d.budgetCode}</span>
-              </div>
+              ) : (
+                <div key={d.id} className="p-2.5 bg-slate-800/80 rounded-lg text-xs flex justify-between items-center group hover:bg-slate-800 transition-colors">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-slate-200">{d.name}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">({d.code})</span>
+                    {d.budgetCode && (
+                      <span className="text-[10px] text-slate-500 font-mono">[{d.budgetCode}]</span>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => handleStartEditDept(d)}
+                        title="Edit Department"
+                        className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteDept(d)}
+                        title="Delete Department"
+                        className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
             ))}
           </div>
         </div>
@@ -580,17 +783,90 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
             </button>
           </form>
 
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {categories.map((c) => (
-              <div key={c.id} className="p-2.5 bg-slate-800/80 rounded-lg text-xs flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-slate-200">{c.name}</span>
-                  <span className="text-[10px] text-slate-400 ml-2 font-mono">({c.code})</span>
+              editingCatId === c.id ? (
+                <div key={c.id} className="p-2.5 bg-slate-800 rounded-lg space-y-2 text-xs border border-indigo-500/50">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Code</label>
+                      <input
+                        type="text"
+                        value={editCatCode}
+                        onChange={(e) => setEditCatCode(e.target.value)}
+                        placeholder="Code"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Name</label>
+                      <input
+                        type="text"
+                        value={editCatName}
+                        onChange={(e) => setEditCatName(e.target.value)}
+                        placeholder="Name"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Threshold</label>
+                      <input
+                        type="number"
+                        value={editCatThreshold}
+                        onChange={(e) => setEditCatThreshold(Number(e.target.value))}
+                        placeholder="Threshold"
+                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCancelEditCat}
+                      className="px-2.5 py-1 bg-slate-700 text-slate-200 rounded hover:bg-slate-600 text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdatingCat}
+                      onClick={() => handleSaveEditCat(c.id)}
+                      className="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Save</span>
+                    </button>
+                  </div>
                 </div>
-                <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  Alert &lt;= {c.lowStockThreshold} units
-                </span>
-              </div>
+              ) : (
+                <div key={c.id} className="p-2.5 bg-slate-800/80 rounded-lg text-xs flex justify-between items-center group hover:bg-slate-800 transition-colors">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-slate-200">{c.name}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">({c.code})</span>
+                    <span className="text-[10px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Alert &lt;= {c.lowStockThreshold} units
+                    </span>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => handleStartEditCat(c)}
+                        title="Edit Category"
+                        className="p-1 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCat(c)}
+                        title="Delete Category"
+                        className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
             ))}
           </div>
         </div>

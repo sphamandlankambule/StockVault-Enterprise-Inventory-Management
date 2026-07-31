@@ -425,6 +425,77 @@ async function startServer() {
     res.status(201).json({ success: true, department: newDept });
   });
 
+  app.put('/api/departments/:id', (req: Request, res: Response) => {
+    const userRole = (req.headers['x-user-role'] as string) || 'ADMIN';
+    if (userRole !== 'ADMIN') {
+      res.status(403).json({ success: false, error: 'Forbidden: Admin privilege required' });
+      return;
+    }
+
+    const dept = departments.find(d => d.id === req.params.id);
+    if (!dept) {
+      res.status(404).json({ success: false, error: 'Department not found' });
+      return;
+    }
+
+    const { code, name, description, budgetCode } = req.body;
+    const oldDept = { ...dept };
+
+    if (code) dept.code = code.toUpperCase();
+    if (name) dept.name = name;
+    if (description !== undefined) dept.description = description;
+    if (budgetCode !== undefined) dept.budgetCode = budgetCode;
+
+    if (name && oldDept.name !== name) {
+      users.forEach(u => {
+        if (u.departmentId === dept.id) u.departmentName = name;
+      });
+      stockBatches.forEach(b => {
+        if (b.departmentId === dept.id) b.departmentName = name;
+      });
+      inventoryItems.forEach(i => {
+        if (i.departmentId === dept.id) i.departmentName = name;
+      });
+    }
+
+    logAudit(req, 'DEPARTMENT_UPDATED', 'DEPARTMENT', dept.id, oldDept, dept);
+    res.json({ success: true, department: dept, message: 'Department updated successfully' });
+  });
+
+  app.delete('/api/departments/:id', (req: Request, res: Response) => {
+    const userRole = (req.headers['x-user-role'] as string) || 'ADMIN';
+    if (userRole !== 'ADMIN') {
+      res.status(403).json({ success: false, error: 'Forbidden: Admin privilege required' });
+      return;
+    }
+
+    const dept = departments.find(d => d.id === req.params.id);
+    if (!dept) {
+      res.status(404).json({ success: false, error: 'Department not found' });
+      return;
+    }
+
+    const inUseInUsers = users.some(u => u.departmentId === dept.id);
+    const inUseInBatches = stockBatches.some(b => b.departmentId === dept.id);
+    const inUseInItems = inventoryItems.some(i => i.departmentId === dept.id);
+
+    if (inUseInUsers || inUseInBatches || inUseInItems) {
+      res.status(400).json({
+        success: false,
+        error: `Cannot delete department '${dept.name}' because it is assigned to existing users, stock batches, or items.`
+      });
+      return;
+    }
+
+    const idx = departments.findIndex(d => d.id === req.params.id);
+    if (idx !== -1) {
+      departments.splice(idx, 1);
+    }
+
+    logAudit(req, 'DEPARTMENT_DELETED', 'DEPARTMENT', req.params.id, dept, undefined);
+    res.json({ success: true, message: 'Department deleted successfully' });
+  });
+
   // 4. Categories
   app.get('/api/categories', (req: Request, res: Response) => {
     res.json({ success: true, categories });
@@ -443,6 +514,73 @@ async function startServer() {
     categories.push(newCat);
     logAudit(req, 'CATEGORY_CREATED', 'CATEGORY', newCat.id, undefined, newCat);
     res.status(201).json({ success: true, category: newCat });
+  });
+
+  app.put('/api/categories/:id', (req: Request, res: Response) => {
+    const userRole = (req.headers['x-user-role'] as string) || 'ADMIN';
+    if (userRole !== 'ADMIN') {
+      res.status(403).json({ success: false, error: 'Forbidden: Admin privilege required' });
+      return;
+    }
+
+    const cat = categories.find(c => c.id === req.params.id);
+    if (!cat) {
+      res.status(404).json({ success: false, error: 'Category not found' });
+      return;
+    }
+
+    const { code, name, description, lowStockThreshold } = req.body;
+    const oldCat = { ...cat };
+
+    if (code) cat.code = code.toUpperCase();
+    if (name) cat.name = name;
+    if (description !== undefined) cat.description = description;
+    if (lowStockThreshold !== undefined) cat.lowStockThreshold = Number(lowStockThreshold);
+
+    if (name && oldCat.name !== name) {
+      stockBatches.forEach(b => {
+        if (b.categoryId === cat.id) b.categoryName = name;
+      });
+      inventoryItems.forEach(i => {
+        if (i.categoryId === cat.id) i.categoryName = name;
+      });
+    }
+
+    logAudit(req, 'CATEGORY_UPDATED', 'CATEGORY', cat.id, oldCat, cat);
+    res.json({ success: true, category: cat, message: 'Category updated successfully' });
+  });
+
+  app.delete('/api/categories/:id', (req: Request, res: Response) => {
+    const userRole = (req.headers['x-user-role'] as string) || 'ADMIN';
+    if (userRole !== 'ADMIN') {
+      res.status(403).json({ success: false, error: 'Forbidden: Admin privilege required' });
+      return;
+    }
+
+    const cat = categories.find(c => c.id === req.params.id);
+    if (!cat) {
+      res.status(404).json({ success: false, error: 'Category not found' });
+      return;
+    }
+
+    const inUseInBatches = stockBatches.some(b => b.categoryId === cat.id);
+    const inUseInItems = inventoryItems.some(i => i.categoryId === cat.id);
+
+    if (inUseInBatches || inUseInItems) {
+      res.status(400).json({
+        success: false,
+        error: `Cannot delete category '${cat.name}' because it is assigned to existing stock batches or inventory items.`
+      });
+      return;
+    }
+
+    const idx = categories.findIndex(c => c.id === req.params.id);
+    if (idx !== -1) {
+      categories.splice(idx, 1);
+    }
+
+    logAudit(req, 'CATEGORY_DELETED', 'CATEGORY', req.params.id, cat, undefined);
+    res.json({ success: true, message: 'Category deleted successfully' });
   });
 
   // 5. Financial Years

@@ -433,13 +433,57 @@ export default function App() {
   const handleCreateDepartment = async (deptData: any) => {
     const res = await fetch('/api/departments', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      },
       body: JSON.stringify(deptData)
     });
     const data = await res.json();
     if (data.success) {
       const dRes = await fetch('/api/departments').then(r => r.json());
       if (dRes.success) setDepartments(dRes.departments);
+    } else {
+      throw new Error(data.error || 'Failed to create department');
+    }
+  };
+
+  // Update Dept
+  const handleUpdateDepartment = async (deptId: string, deptData: any) => {
+    const res = await fetch(`/api/departments/${deptId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      },
+      body: JSON.stringify(deptData)
+    });
+    const data = await res.json();
+    if (data.success) {
+      const dRes = await fetch('/api/departments').then(r => r.json());
+      if (dRes.success) setDepartments(dRes.departments);
+    } else {
+      throw new Error(data.error || 'Failed to update department');
+    }
+  };
+
+  // Delete Dept
+  const handleDeleteDepartment = async (deptId: string) => {
+    const res = await fetch(`/api/departments/${deptId}`, {
+      method: 'DELETE',
+      headers: {
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      }
+    });
+    const data = await res.json();
+    if (data.success) {
+      const dRes = await fetch('/api/departments').then(r => r.json());
+      if (dRes.success) setDepartments(dRes.departments);
+    } else {
+      throw new Error(data.error || 'Failed to delete department');
     }
   };
 
@@ -447,13 +491,57 @@ export default function App() {
   const handleCreateCategory = async (catData: any) => {
     const res = await fetch('/api/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      },
       body: JSON.stringify(catData)
     });
     const data = await res.json();
     if (data.success) {
       const cRes = await fetch('/api/categories').then(r => r.json());
       if (cRes.success) setCategories(cRes.categories);
+    } else {
+      throw new Error(data.error || 'Failed to create category');
+    }
+  };
+
+  // Update Cat
+  const handleUpdateCategory = async (catId: string, catData: any) => {
+    const res = await fetch(`/api/categories/${catId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      },
+      body: JSON.stringify(catData)
+    });
+    const data = await res.json();
+    if (data.success) {
+      const cRes = await fetch('/api/categories').then(r => r.json());
+      if (cRes.success) setCategories(cRes.categories);
+    } else {
+      throw new Error(data.error || 'Failed to update category');
+    }
+  };
+
+  // Delete Cat
+  const handleDeleteCategory = async (catId: string) => {
+    const res = await fetch(`/api/categories/${catId}`, {
+      method: 'DELETE',
+      headers: {
+        'x-user-id': currentUser?.id || '',
+        'x-user-role': currentUser?.role || 'ADMIN'
+      }
+    });
+    const data = await res.json();
+    if (data.success) {
+      const cRes = await fetch('/api/categories').then(r => r.json());
+      if (cRes.success) setCategories(cRes.categories);
+    } else {
+      throw new Error(data.error || 'Failed to delete category');
     }
   };
 
@@ -666,7 +754,11 @@ export default function App() {
                 onUpdateFinancialYear={handleUpdateFinancialYear}
                 onDeleteFinancialYear={handleDeleteFinancialYear}
                 onCreateDepartment={handleCreateDepartment}
+                onUpdateDepartment={handleUpdateDepartment}
+                onDeleteDepartment={handleDeleteDepartment}
                 onCreateCategory={handleCreateCategory}
+                onUpdateCategory={handleUpdateCategory}
+                onDeleteCategory={handleDeleteCategory}
                 onUpdateSettings={handleUpdateSettings}
               />
             )}
