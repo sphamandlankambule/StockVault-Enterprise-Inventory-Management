@@ -1,17 +1,8 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import {
-  INITIAL_DEPARTMENTS,
-  INITIAL_CATEGORIES,
-  INITIAL_FINANCIAL_YEARS,
-  INITIAL_USERS,
-  INITIAL_BATCHES,
-  INITIAL_ITEMS,
-  INITIAL_TRANSACTIONS,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_SETTINGS
-} from './src/data/mockDatabase.js';
+import mysql from 'mysql2/promise';
+import pg from 'pg';
 import {
   User,
   Department,
@@ -27,28 +18,106 @@ import {
 
 const currentDirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
+const DB_ERROR_MESSAGE = "Database Connecion Failed";
+
+async function checkAndConnectDb(): Promise<boolean> {
+  const dbUrl = process.env.DATABASE_URL;
+  const dbHost = process.env.DB_HOST;
+  const dbUser = process.env.DB_USER;
+  const dbName = process.env.DB_NAME;
+
+  if (!dbUrl && (!dbHost || !dbUser || !dbName)) {
+    return false;
+  }
+
+  try {
+    if (dbUrl) {
+      if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
+        const pool = new pg.Pool({ connectionString: dbUrl });
+        await pool.query('SELECT 1');
+        await pool.end();
+      } else {
+        const pool = mysql.createPool(dbUrl);
+        await pool.query('SELECT 1');
+        await pool.end();
+      }
+    } else {
+      const dbType = (process.env.DB_TYPE || 'mysql').toLowerCase();
+      if (dbType === 'postgres' || dbType === 'postgresql') {
+        const pool = new pg.Pool({
+          host: dbHost,
+          user: dbUser,
+          password: process.env.DB_PASSWORD || '',
+          database: dbName,
+          port: Number(process.env.DB_PORT) || 5432
+        });
+        await pool.query('SELECT 1');
+        await pool.end();
+      } else {
+        const pool = mysql.createPool({
+          host: dbHost,
+          user: dbUser,
+          password: process.env.DB_PASSWORD || '',
+          database: dbName,
+          port: Number(process.env.DB_PORT) || 3306
+        });
+        await pool.query('SELECT 1');
+        await pool.end();
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("Database connection failed:", err);
+    return false;
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
 
-  // In-Memory Enterprise Database Store
-  let users: User[] = [...INITIAL_USERS];
-  let departments: Department[] = [...INITIAL_DEPARTMENTS];
-  let categories: Category[] = [...INITIAL_CATEGORIES];
-  let financialYears: FinancialYear[] = [...INITIAL_FINANCIAL_YEARS];
-  let stockBatches: StockBatch[] = [...INITIAL_BATCHES];
-  let inventoryItems: InventoryItem[] = [...INITIAL_ITEMS];
-  let stockTransactions: StockTransaction[] = [...INITIAL_TRANSACTIONS];
-  let auditLogs: AuditLog[] = [...INITIAL_AUDIT_LOGS];
-  let systemSettings: SystemSettings = { ...INITIAL_SETTINGS };
+  // In-Memory Enterprise Database Store (Empty by default - all data from DB)
+  let users: User[] = [];
+  let departments: Department[] = [];
+  let categories: Category[] = [];
+  let financialYears: FinancialYear[] = [];
+  let stockBatches: StockBatch[] = [];
+  let inventoryItems: InventoryItem[] = [];
+  let stockTransactions: StockTransaction[] = [];
+  let auditLogs: AuditLog[] = [];
+  let systemSettings: SystemSettings = {
+    activeFinancialYearId: '',
+    lowStockGlobalThreshold: 5,
+    companyName: 'StockVault Enterprise Systems',
+    requireDualSignatures: true,
+    currencySymbol: 'E',
+    currencyCode: 'SZL',
+    currencyName: 'Eswatini Lilangeni',
+    phpApiBaseUrl: '',
+    phpBridgeMode: false
+  };
 
   // Helper function to sanitize user object (remove password) before returning
   const sanitizeUser = (u: User) => {
     const { password, ...safeUser } = u;
     return safeUser;
   };
+
+  // Database Connection Middleware for API routes
+  app.use('/api', async (req: Request, res: Response, next) => {
+    const isConnected = await checkAndConnectDb();
+    if (!isConnected) {
+      res.status(500).json({
+        success: false,
+        error: DB_ERROR_MESSAGE,
+        message: DB_ERROR_MESSAGE
+      });
+      return;
+    }
+    next();
+  });
 
   // Helper function to get user scope from request headers
   const getUserScope = (req: Request) => {

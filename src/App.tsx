@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginView } from './components/LoginView';
@@ -58,6 +59,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   const getAuthHeaders = (user = currentUser) => ({
     'x-user-id': user?.id || '',
@@ -176,18 +178,22 @@ export default function App() {
         settRes,
         auditRes
       ] = await Promise.all([
-        fetch('/api/users').then((r) => r.json()),
-        fetch('/api/departments').then((r) => r.json()),
-        fetch('/api/categories').then((r) => r.json()),
-        fetch('/api/financial-years').then((r) => r.json()),
-        fetch('/api/settings').then((r) => r.json()),
-        fetch('/api/audit-logs').then((r) => r.json())
+        fetch('/api/users').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
+        fetch('/api/departments').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
+        fetch('/api/categories').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
+        fetch('/api/financial-years').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
+        fetch('/api/settings').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
+        fetch('/api/audit-logs').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' }))
       ]);
 
-      if (usersRes.success) {
-        setUsers(usersRes.users);
+      if (!usersRes.success || !deptRes.success || !catRes.success || !fyRes.success) {
+        setDbError("Database Connecion Failed");
+        return;
+      } else {
+        setDbError(null);
       }
 
+      if (usersRes.success) setUsers(usersRes.users);
       if (deptRes.success) setDepartments(deptRes.departments);
       if (catRes.success) setCategories(catRes.categories);
       if (fyRes.success) {
@@ -204,10 +210,10 @@ export default function App() {
       const headers = getAuthHeaders(currentUser);
 
       const [batchesRes, itemsRes, txRes, metricsRes] = await Promise.all([
-        fetch(`/api/stock/batches?financialYearId=${targetFyId}`, { headers }).then(r => r.json()),
-        fetch(`/api/stock/items?financialYearId=${targetFyId}`, { headers }).then(r => r.json()),
-        fetch('/api/transactions', { headers }).then(r => r.json()),
-        fetch(`/api/dashboard/metrics?financialYearId=${targetFyId}`, { headers }).then(r => r.json())
+        fetch(`/api/stock/batches?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
+        fetch(`/api/stock/items?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
+        fetch('/api/transactions', { headers }).then(r => r.json()).catch(() => ({ success: false })),
+        fetch(`/api/dashboard/metrics?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false }))
       ]);
 
       if (batchesRes.success) setBatches(batchesRes.batches);
@@ -217,6 +223,7 @@ export default function App() {
 
     } catch (error) {
       console.error('Failed to load initial data:', error);
+      setDbError("Database Connecion Failed");
     } finally {
       setIsLoading(false);
     }
@@ -473,6 +480,37 @@ export default function App() {
       console.error('Error updating settings:', e);
     }
   };
+
+  if (dbError) {
+    return (
+      <div className="min-h-screen bg-[#020617] text-slate-100 flex items-center justify-center p-4 relative overflow-hidden select-none">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl relative z-10">
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl w-fit mx-auto text-red-400">
+            <AlertTriangle className="w-10 h-10" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-white tracking-tight">Database Connecion Failed</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Default application values have been removed. All data must come directly from the database, but a connection could not be established.
+            </p>
+          </div>
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-left font-mono text-xs text-red-400 font-semibold space-y-1">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">Error Message</div>
+            <div>Database Connecion Failed</div>
+          </div>
+          <button
+            onClick={() => {
+              setDbError(null);
+              loadAllData();
+            }}
+            className="w-full bg-red-600 hover:bg-red-500 text-white font-semibold text-xs py-3 rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/30 active:scale-95"
+          >
+            Retry Database Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
