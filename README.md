@@ -162,6 +162,51 @@ An Enterprise Inventory & Audit Compliance Management System built with React 18
 
 ---
 
+### Step 3 (Optional): Hosting PHP API Files in XAMPP (`htdocs`)
+
+If you choose to run direct PHP REST API backend scripts with XAMPP Apache:
+
+1. Open your XAMPP web root directory:
+   - **Windows**: `C:\xampp\htdocs\`
+   - **macOS**: `/Applications/XAMPP/htdocs/`
+   - **Linux**: `/opt/lampp/htdocs/`
+
+2. Create a directory structure for your API:
+   ```
+   C:\xampp\htdocs\stockvault\api\
+   ```
+
+3. Paste your PHP API script files (`db_config.php`, `users.php`, `add_stock.php`, `stock_out.php`, `get_inventory.php`, etc.) into:
+   ```
+   C:\xampp\htdocs\stockvault\api\
+   ```
+
+4. Create `db_config.php` inside `C:\xampp\htdocs\stockvault\api\`:
+   ```php
+   <?php
+   $host = "localhost";
+   $user = "root";
+   $password = "";
+   $dbname = "stockvault";
+
+   $conn = new mysqli($host, $user, $password, $dbname);
+
+   if ($conn->connect_error) {
+       die(json_encode(["error" => "Database connection failed: " . $conn->connect_error]));
+   }
+   header('Content-Type: application/json');
+   ?>
+   ```
+
+5. Access pre-generated PHP script templates directly in the application's **MySQL & PHP API** view.
+
+6. Test your PHP endpoints in browser or Postman:
+   ```
+   http://localhost/stockvault/api/users.php
+   ```
+
+---
+
 ## 🔒 User Roles & Access Scope
 
 - **System Administrator (`ADMIN`)**: Access to all departments, system settings, financial year activations, user provisioning, and organization-wide stock reports.
