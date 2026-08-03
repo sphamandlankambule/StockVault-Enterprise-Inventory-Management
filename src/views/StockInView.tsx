@@ -78,7 +78,9 @@ export const StockInView: React.FC<StockInViewProps> = ({
         try {
           const res = await fetch(`/api/stock/check-serial?serial=${encodeURIComponent(serial)}`);
           if (res.ok) {
-            const data = await res.json();
+            const text = await res.text();
+            let data: any = {};
+            try { data = JSON.parse(text); } catch {}
             if (data.exists) {
               warnings.push(`${serial} (${data.warning || 'Already in DB'})`);
             }

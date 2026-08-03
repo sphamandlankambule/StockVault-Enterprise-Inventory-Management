@@ -66,8 +66,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           'x-user-department-id': currentUser?.departmentId || ''
         }
       });
-      if (res.ok) {
-        const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('Reports endpoint returned non-JSON response');
+      }
+      if (res.ok && data.summary) {
         setReportData(data.summary);
         setBatchesList(data.batches || []);
         setTxsList(data.transactions || []);

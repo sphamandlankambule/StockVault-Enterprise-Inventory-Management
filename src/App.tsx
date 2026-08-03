@@ -67,6 +67,33 @@ export default function App() {
     'x-user-department-id': user?.departmentId || ''
   });
 
+  const safeFetchJson = async (url: string, options?: RequestInit): Promise<any> => {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        return {
+          ok: false,
+          success: false,
+          error: 'Database Connection Failed: Backend returned HTML or non-JSON response instead of database data. Ensure php_apis/db_connection.php is properly configured.'
+        };
+      }
+      if (typeof data === 'object' && data !== null) {
+        return { ok: res.ok, ...data };
+      }
+      return { ok: res.ok, success: res.ok, data };
+    } catch (err: any) {
+      return {
+        ok: false,
+        success: false,
+        error: `Database Connection Failed: ${err?.message || 'Network request failed'}`
+      };
+    }
+  };
+
   // Initial Data Load
   useEffect(() => {
     loadAllData();
@@ -97,14 +124,13 @@ export default function App() {
   const handleLogin = async (usernameInput: string, passwordInput: string) => {
     setIsAuthenticating(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const data = await safeFetchJson('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: usernameInput, password: passwordInput })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.ok || !data.success) {
         throw new Error(data.error || 'Invalid username or password');
       }
 
@@ -124,7 +150,7 @@ export default function App() {
 
   const handleChangePassword = async (currentPassword: string, newPassword: string) => {
     if (!currentUser) return;
-    const res = await fetch('/api/auth/change-password', {
+    const data = await safeFetchJson('/api/auth/change-password', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,8 +159,7 @@ export default function App() {
       body: JSON.stringify({ currentPassword, newPassword })
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to change password');
     }
 
@@ -146,7 +171,7 @@ export default function App() {
 
   const handleResetUserPassword = async (targetUserId: string, newPassword: string) => {
     if (!currentUser || currentUser.role !== 'ADMIN') return;
-    const res = await fetch(`/api/users/${targetUserId}/reset-password`, {
+    const data = await safeFetchJson(`/api/users/${targetUserId}/reset-password`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -155,13 +180,12 @@ export default function App() {
       body: JSON.stringify({ newPassword })
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to reset user password');
     }
 
     // Refresh users
-    const usersRes = await fetch('/api/users').then(r => r.json());
+    const usersRes = await safeFetchJson('/api/users');
     if (usersRes.success) {
       setUsers(usersRes.users);
     }
@@ -178,12 +202,12 @@ export default function App() {
         settRes,
         auditRes
       ] = await Promise.all([
-        fetch('/api/users').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
-        fetch('/api/departments').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
-        fetch('/api/categories').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
-        fetch('/api/financial-years').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
-        fetch('/api/settings').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
-        fetch('/api/audit-logs').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' }))
+        safeFetchJson('/api/users'),
+        safeFetchJson('/api/departments'),
+        safeFetchJson('/api/categories'),
+        safeFetchJson('/api/financial-years'),
+        safeFetchJson('/api/settings'),
+        safeFetchJson('/api/audit-logs')
       ]);
 
       if (!usersRes.success || !deptRes.success || !catRes.success || !fyRes.success) {
@@ -194,7 +218,7 @@ export default function App() {
           fyRes.error ||
           settRes.error ||
           auditRes.error ||
-          'Database Connection Failed: Unable to connect to MySQL database';
+          'Database Connection Failed: Unable to connect to MySQL database via php_apis/db_connection.php';
         setDbError(errorDetail);
         return;
       } else {
@@ -218,10 +242,10 @@ export default function App() {
       const headers = getAuthHeaders(currentUser);
 
       const [batchesRes, itemsRes, txRes, metricsRes] = await Promise.all([
-        fetch(`/api/stock/batches?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
-        fetch(`/api/stock/items?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
-        fetch('/api/transactions', { headers }).then(r => r.json()).catch(() => ({ success: false })),
-        fetch(`/api/dashboard/metrics?financialYearId=${targetFyId}`, { headers }).then(r => r.json()).catch(() => ({ success: false }))
+        safeFetchJson(`/api/stock/batches?financialYearId=${targetFyId}`, { headers }),
+        safeFetchJson(`/api/stock/items?financialYearId=${targetFyId}`, { headers }),
+        safeFetchJson('/api/transactions', { headers }),
+        safeFetchJson(`/api/dashboard/metrics?financialYearId=${targetFyId}`, { headers })
       ]);
 
       if (batchesRes.success) setBatches(batchesRes.batches);
@@ -241,12 +265,12 @@ export default function App() {
     try {
       const headers = getAuthHeaders(user);
       const [mRes, bRes, iRes, tRes, aRes, dRes] = await Promise.all([
-        fetch(`/api/dashboard/metrics?financialYearId=${fyId}`, { headers }).then(r => r.json()),
-        fetch(`/api/stock/batches?financialYearId=${fyId}`, { headers }).then(r => r.json()),
-        fetch(`/api/stock/items?financialYearId=${fyId}`, { headers }).then(r => r.json()),
-        fetch('/api/transactions', { headers }).then(r => r.json()),
-        fetch('/api/audit-logs', { headers }).then(r => r.json()),
-        fetch('/api/departments', { headers }).then(r => r.json())
+        safeFetchJson(`/api/dashboard/metrics?financialYearId=${fyId}`, { headers }),
+        safeFetchJson(`/api/stock/batches?financialYearId=${fyId}`, { headers }),
+        safeFetchJson(`/api/stock/items?financialYearId=${fyId}`, { headers }),
+        safeFetchJson('/api/transactions', { headers }),
+        safeFetchJson('/api/audit-logs', { headers }),
+        safeFetchJson('/api/departments', { headers })
       ]);
 
       if (mRes.success) setMetrics(mRes.metrics);
@@ -262,7 +286,7 @@ export default function App() {
 
   // Stock In Batch Creation
   const handleStockInSuccess = async (payload: any) => {
-    const res = await fetch('/api/stock/batches', {
+    const data = await safeFetchJson('/api/stock/batches', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -272,8 +296,7 @@ export default function App() {
       body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to register stock batch');
     }
 
@@ -282,7 +305,7 @@ export default function App() {
 
   // Stock Out Dispatch
   const handleDispatchStock = async (payload: any) => {
-    const res = await fetch('/api/stock/dispatch', {
+    const data = await safeFetchJson('/api/stock/dispatch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -292,8 +315,7 @@ export default function App() {
       body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to dispatch stock');
     }
 
@@ -302,7 +324,7 @@ export default function App() {
 
   // Update Item Status
   const handleUpdateItemStatus = async (itemId: string, status: ItemStatus, notes: string) => {
-    const res = await fetch(`/api/stock/items/${itemId}/status`, {
+    const data = await safeFetchJson(`/api/stock/items/${itemId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -312,8 +334,7 @@ export default function App() {
       body: JSON.stringify({ status, notes })
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to update item status');
     }
 
@@ -322,7 +343,7 @@ export default function App() {
 
   // Create User (Admin Only)
   const handleCreateUser = async (userData: any) => {
-    const res = await fetch('/api/users', {
+    const data = await safeFetchJson('/api/users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -332,18 +353,17 @@ export default function App() {
       body: JSON.stringify(userData)
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
+    if (!data.ok || !data.success) {
       throw new Error(data.error || 'Failed to create user');
     }
 
-    const uRes = await fetch('/api/users').then(r => r.json());
+    const uRes = await safeFetchJson('/api/users');
     if (uRes.success) setUsers(uRes.users);
   };
 
   // Toggle User Status
   const handleToggleUserStatus = async (userId: string) => {
-    const res = await fetch(`/api/users/${userId}/status`, {
+    const data = await safeFetchJson(`/api/users/${userId}/status`, {
       method: 'PUT',
       headers: {
         'x-user-id': currentUser?.id || 'user-admin',
@@ -351,20 +371,18 @@ export default function App() {
       }
     });
 
-    const data = await res.json();
     if (data.success) {
-      const uRes = await fetch('/api/users').then(r => r.json());
+      const uRes = await safeFetchJson('/api/users');
       if (uRes.success) setUsers(uRes.users);
     }
   };
 
   // Activate FY
   const handleActivateFy = async (fyId: string) => {
-    const res = await fetch(`/api/financial-years/${fyId}/activate`, { method: 'PUT' });
-    const data = await res.json();
+    const data = await safeFetchJson(`/api/financial-years/${fyId}/activate`, { method: 'PUT' });
     if (data.success) {
       setActiveFyId(fyId);
-      const fyRes = await fetch('/api/financial-years').then(r => r.json());
+      const fyRes = await safeFetchJson('/api/financial-years');
       if (fyRes.success) setFinancialYears(fyRes.financialYears);
       await refreshMetricsAndData(fyId);
     }
@@ -372,7 +390,7 @@ export default function App() {
 
   // Create Financial Year
   const handleCreateFinancialYear = async (fyData: any) => {
-    const res = await fetch('/api/financial-years', {
+    const data = await safeFetchJson('/api/financial-years', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -381,9 +399,8 @@ export default function App() {
       },
       body: JSON.stringify(fyData)
     });
-    const data = await res.json();
     if (data.success) {
-      const fyRes = await fetch('/api/financial-years').then(r => r.json());
+      const fyRes = await safeFetchJson('/api/financial-years');
       if (fyRes.success) setFinancialYears(fyRes.financialYears);
       if (data.financialYear?.isActive) {
         setActiveFyId(data.financialYear.id);
@@ -396,7 +413,7 @@ export default function App() {
 
   // Update Financial Year
   const handleUpdateFinancialYear = async (fyId: string, fyData: any) => {
-    const res = await fetch(`/api/financial-years/${fyId}`, {
+    const data = await safeFetchJson(`/api/financial-years/${fyId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -405,9 +422,8 @@ export default function App() {
       },
       body: JSON.stringify(fyData)
     });
-    const data = await res.json();
     if (data.success) {
-      const fyRes = await fetch('/api/financial-years').then(r => r.json());
+      const fyRes = await safeFetchJson('/api/financial-years');
       if (fyRes.success) setFinancialYears(fyRes.financialYears);
       if (data.financialYear?.isActive) {
         setActiveFyId(data.financialYear.id);
@@ -420,16 +436,15 @@ export default function App() {
 
   // Delete Financial Year
   const handleDeleteFinancialYear = async (fyId: string) => {
-    const res = await fetch(`/api/financial-years/${fyId}`, {
+    const data = await safeFetchJson(`/api/financial-years/${fyId}`, {
       method: 'DELETE',
       headers: {
         'x-user-id': currentUser?.id || '',
         'x-user-role': currentUser?.role || 'ADMIN'
       }
     });
-    const data = await res.json();
     if (data.success) {
-      const fyRes = await fetch('/api/financial-years').then(r => r.json());
+      const fyRes = await safeFetchJson('/api/financial-years');
       if (fyRes.success) setFinancialYears(fyRes.financialYears);
       await refreshMetricsAndData(activeFyId);
     } else {
@@ -439,7 +454,7 @@ export default function App() {
 
   // Create Dept
   const handleCreateDepartment = async (deptData: any) => {
-    const res = await fetch('/api/departments', {
+    const data = await safeFetchJson('/api/departments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -448,9 +463,8 @@ export default function App() {
       },
       body: JSON.stringify(deptData)
     });
-    const data = await res.json();
     if (data.success) {
-      const dRes = await fetch('/api/departments').then(r => r.json());
+      const dRes = await safeFetchJson('/api/departments');
       if (dRes.success) setDepartments(dRes.departments);
     } else {
       throw new Error(data.error || 'Failed to create department');
@@ -459,7 +473,7 @@ export default function App() {
 
   // Update Dept
   const handleUpdateDepartment = async (deptId: string, deptData: any) => {
-    const res = await fetch(`/api/departments/${deptId}`, {
+    const data = await safeFetchJson(`/api/departments/${deptId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -468,9 +482,8 @@ export default function App() {
       },
       body: JSON.stringify(deptData)
     });
-    const data = await res.json();
     if (data.success) {
-      const dRes = await fetch('/api/departments').then(r => r.json());
+      const dRes = await safeFetchJson('/api/departments');
       if (dRes.success) setDepartments(dRes.departments);
     } else {
       throw new Error(data.error || 'Failed to update department');
@@ -479,16 +492,15 @@ export default function App() {
 
   // Delete Dept
   const handleDeleteDepartment = async (deptId: string) => {
-    const res = await fetch(`/api/departments/${deptId}`, {
+    const data = await safeFetchJson(`/api/departments/${deptId}`, {
       method: 'DELETE',
       headers: {
         'x-user-id': currentUser?.id || '',
         'x-user-role': currentUser?.role || 'ADMIN'
       }
     });
-    const data = await res.json();
     if (data.success) {
-      const dRes = await fetch('/api/departments').then(r => r.json());
+      const dRes = await safeFetchJson('/api/departments');
       if (dRes.success) setDepartments(dRes.departments);
     } else {
       throw new Error(data.error || 'Failed to delete department');
@@ -497,7 +509,7 @@ export default function App() {
 
   // Create Cat
   const handleCreateCategory = async (catData: any) => {
-    const res = await fetch('/api/categories', {
+    const data = await safeFetchJson('/api/categories', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -506,9 +518,8 @@ export default function App() {
       },
       body: JSON.stringify(catData)
     });
-    const data = await res.json();
     if (data.success) {
-      const cRes = await fetch('/api/categories').then(r => r.json());
+      const cRes = await safeFetchJson('/api/categories');
       if (cRes.success) setCategories(cRes.categories);
     } else {
       throw new Error(data.error || 'Failed to create category');
@@ -517,7 +528,7 @@ export default function App() {
 
   // Update Cat
   const handleUpdateCategory = async (catId: string, catData: any) => {
-    const res = await fetch(`/api/categories/${catId}`, {
+    const data = await safeFetchJson(`/api/categories/${catId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -526,9 +537,8 @@ export default function App() {
       },
       body: JSON.stringify(catData)
     });
-    const data = await res.json();
     if (data.success) {
-      const cRes = await fetch('/api/categories').then(r => r.json());
+      const cRes = await safeFetchJson('/api/categories');
       if (cRes.success) setCategories(cRes.categories);
     } else {
       throw new Error(data.error || 'Failed to update category');
@@ -537,16 +547,15 @@ export default function App() {
 
   // Delete Cat
   const handleDeleteCategory = async (catId: string) => {
-    const res = await fetch(`/api/categories/${catId}`, {
+    const data = await safeFetchJson(`/api/categories/${catId}`, {
       method: 'DELETE',
       headers: {
         'x-user-id': currentUser?.id || '',
         'x-user-role': currentUser?.role || 'ADMIN'
       }
     });
-    const data = await res.json();
     if (data.success) {
-      const cRes = await fetch('/api/categories').then(r => r.json());
+      const cRes = await safeFetchJson('/api/categories');
       if (cRes.success) setCategories(cRes.categories);
     } else {
       throw new Error(data.error || 'Failed to delete category');
@@ -556,7 +565,7 @@ export default function App() {
   // Update System Settings
   const handleUpdateSettings = async (newSettings: Partial<SystemSettings>) => {
     try {
-      const res = await fetch('/api/settings', {
+      const data = await safeFetchJson('/api/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -566,7 +575,6 @@ export default function App() {
         },
         body: JSON.stringify(newSettings)
       });
-      const data = await res.json();
       if (data.success) {
         setSettings(data.settings);
         // Refresh metrics to update total valuation display if needed

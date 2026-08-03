@@ -117,12 +117,17 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
     setIsLoadingDbStatus(true);
     try {
       const res = await fetch('/api/db/status');
-      const data = await res.json();
-      if (data.success) {
-        setDbStatus(data);
+      const text = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: false, error: 'Database status endpoint returned HTML / non-JSON output' };
       }
-    } catch (err) {
+      setDbStatus(data);
+    } catch (err: any) {
       console.error('Failed to fetch DB status:', err);
+      setDbStatus({ success: false, error: err?.message || 'Network error' });
     } finally {
       setIsLoadingDbStatus(false);
     }

@@ -30,7 +30,17 @@ async function proxyToPhpApi(req: Request, res: Response, targetEndpoint: string
     }
 
     const phpResponse = await fetch(url, fetchOptions);
-    const data = await phpResponse.json();
+    const responseText = await phpResponse.text();
+
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return res.status(500).json({
+        success: false,
+        error: `Database Connection Failed: PHP API endpoint at ${url} returned HTML or non-JSON output. Ensure MySQL database is active and php_apis/db_connection.php is properly configured.`
+      });
+    }
 
     res.status(phpResponse.status).json(data);
   } catch (err: any) {
@@ -60,7 +70,16 @@ async function startServer() {
   app.get('/api/db/status', async (req: Request, res: Response) => {
     try {
       const response = await fetch(`${PHP_API_BASE_URL.replace(/\/$/, '')}/db_connection.php`);
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        return res.status(500).json({
+          success: false,
+          error: `Database Connection Failed: php_apis/db_connection.php returned non-JSON output (HTML / PHP runtime error).`
+        });
+      }
       res.status(response.status).json(data);
     } catch (err: any) {
       res.status(500).json({
