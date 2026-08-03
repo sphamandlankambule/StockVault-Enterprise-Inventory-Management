@@ -77,7 +77,7 @@ if ($method === 'POST' && $action === 'login') {
     exit();
 }
 
-if ($method === 'POST' && $action === 'change-password') {
+if ($method === 'POST' && ($action === 'change-password' || $action === 'change_password')) {
     $headers = getallheaders();
     $userId = $headers['X-User-Id'] ?? $headers['x-user-id'] ?? null;
 

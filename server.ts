@@ -11,7 +11,46 @@ const PHP_API_BASE_URL = process.env.PHP_API_BASE_URL || 'http://localhost/stock
  */
 async function proxyToPhpApi(req: Request, res: Response, targetEndpoint: string) {
   try {
-    const url = `${PHP_API_BASE_URL.replace(/\/$/, '')}/${targetEndpoint.replace(/^\//, '')}`;
+    const queryParams = new URLSearchParams();
+
+    // Copy query parameters from incoming request (e.g., ?financialYearId=1)
+    const originalUrlObj = new URL(req.originalUrl || req.url, 'http://localhost');
+    originalUrlObj.searchParams.forEach((val, key) => {
+      queryParams.set(key, val);
+    });
+
+    const cleanPath = req.path.split('?')[0];
+
+    // Extract path parameters into queryParams (id, action) for PHP endpoints
+    if (targetEndpoint === 'auth.php') {
+      if (cleanPath.endsWith('/login')) {
+        queryParams.set('action', 'login');
+      } else if (cleanPath.endsWith('/change-password')) {
+        queryParams.set('action', 'change-password');
+      }
+    } else if (targetEndpoint === 'users.php') {
+      const parts = cleanPath.replace(/^\/api\/users\/?/, '').split('/').filter(Boolean);
+      if (parts.length >= 1) queryParams.set('id', parts[0]);
+      if (parts.length >= 2) queryParams.set('action', parts[1]);
+    } else if (targetEndpoint === 'departments.php') {
+      const parts = cleanPath.replace(/^\/api\/departments\/?/, '').split('/').filter(Boolean);
+      if (parts.length >= 1) queryParams.set('id', parts[0]);
+    } else if (targetEndpoint === 'categories.php') {
+      const parts = cleanPath.replace(/^\/api\/categories\/?/, '').split('/').filter(Boolean);
+      if (parts.length >= 1) queryParams.set('id', parts[0]);
+    } else if (targetEndpoint === 'financial_years.php') {
+      const parts = cleanPath.replace(/^\/api\/financial-years\/?/, '').split('/').filter(Boolean);
+      if (parts.length >= 1) queryParams.set('id', parts[0]);
+      if (parts.length >= 2) queryParams.set('action', parts[1]);
+    } else if (targetEndpoint === 'inventory_items.php') {
+      const parts = cleanPath.replace(/^\/api\/stock\/items\/?/, '').split('/').filter(Boolean);
+      if (parts.length >= 1) queryParams.set('id', parts[0]);
+      if (parts.length >= 2) queryParams.set('action', parts[1]);
+    }
+
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const url = `${PHP_API_BASE_URL.replace(/\/$/, '')}/${targetEndpoint.replace(/^\//, '')}${queryString}`;
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -25,7 +64,7 @@ async function proxyToPhpApi(req: Request, res: Response, targetEndpoint: string
       headers,
     };
 
-    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
       fetchOptions.body = JSON.stringify(req.body);
     }
 

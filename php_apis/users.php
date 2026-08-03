@@ -93,7 +93,7 @@ switch ($method) {
             exit();
         }
 
-        if ($action === 'reset_password') {
+        if ($action === 'reset_password' || $action === 'reset-password') {
             $newPassword = $input['newPassword'] ?? '';
             if (strlen($newPassword) < 6) {
                 http_response_code(400);
