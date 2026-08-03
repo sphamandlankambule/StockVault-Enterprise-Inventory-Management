@@ -9,6 +9,10 @@ require_once __DIR__ . '/db_connection.php';
 $fyId = $_GET['financialYearId'] ?? $_GET['financial_year_id'] ?? null;
 $deptId = $_GET['departmentId'] ?? $_GET['department_id'] ?? null;
 
+if ($deptId !== null && trim((string)$deptId) === '') {
+    $deptId = null;
+}
+
 if (!$fyId) {
     $stmt = $pdo->query("SELECT id FROM financial_years WHERE is_active = TRUE LIMIT 1");
     $fyId = $stmt->fetchColumn() ?: 1;
@@ -50,7 +54,7 @@ $bSql = "
            b.department_id as departmentId,
            b.financial_year_id as financialYearId,
            b.is_serialized as isSerialized,
-           b.received_date as receivedDate
+           b.created_at as receivedDate
     FROM stock_batches b
     WHERE b.financial_year_id = ? $batchDeptWhere
     ORDER BY b.id DESC

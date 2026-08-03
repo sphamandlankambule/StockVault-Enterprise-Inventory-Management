@@ -31,6 +31,46 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
+  const PHP_BACKEND_URL = process.env.PHP_BACKEND_URL || process.env.VITE_PHP_BACKEND_URL || 'http://127.0.0.1:8000/php_apis';
+
+  const forwardToPhp = async (phpScript: string, req: Request, res: Response): Promise<boolean> => {
+    try {
+      const queryString = new URLSearchParams(req.query as any).toString();
+      const url = `${PHP_BACKEND_URL}/${phpScript}${queryString ? '?' + queryString : ''}`;
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (req.headers['x-user-id']) headers['x-user-id'] = String(req.headers['x-user-id']);
+      if (req.headers['x-user-role']) headers['x-user-role'] = String(req.headers['x-user-role']);
+      if (req.headers['x-user-department-id']) headers['x-user-department-id'] = String(req.headers['x-user-department-id']);
+
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers
+      };
+      if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body && Object.keys(req.body).length > 0) {
+        fetchOptions.body = JSON.stringify(req.body);
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      fetchOptions.signal = controller.signal;
+
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const json = await response.json();
+        res.json(json);
+        return true;
+      }
+    } catch {
+      // Fall through to native handler
+    }
+    return false;
+  };
+
   // Helper to log audit events
   const addAuditLog = (
     userId: string,
@@ -528,7 +568,9 @@ async function startServer() {
   });
 
   // ---------------- REPORTS & VALUATION ROUTES ----------------
-  app.all(['/api/reports*', '/api/reports.php*'], (req: Request, res: Response) => {
+  app.all(['/api/reports*', '/api/reports.php*'], async (req: Request, res: Response) => {
+    if (await forwardToPhp('reports.php', req, res)) return;
+
     const fyQueryParam = req.query.financialYearId || req.query.financial_year_id || dbSettings.activeFinancialYearId;
     const deptId = req.query.departmentId || req.query.department_id || '';
 
