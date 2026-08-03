@@ -208,3 +208,22 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   `ip_address` VARCHAR(45) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 11. System Settings Table
+CREATE TABLE IF NOT EXISTS `system_settings` (
+  `setting_key` VARCHAR(100) PRIMARY KEY,
+  `setting_value` TEXT NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
+('company_name', 'StockVault Enterprise Warehouse', 'Organization company name'),
+('currency_code', 'SZL', 'Default Currency Code'),
+('currency_symbol', 'E', 'Default Currency Symbol'),
+('currency_name', 'Eswatini Lilangeni', 'Default Currency Name'),
+('low_stock_global_threshold', '5', 'Global low stock threshold'),
+('require_dual_signatures', '1', 'Mandate both issuer and receiver signatures'),
+('php_api_base_url', 'http://localhost/stockvault/api', 'PHP API Base URL'),
+('php_bridge_mode', '1', 'PHP Bridge Mode Enabled')
+ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);

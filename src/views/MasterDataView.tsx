@@ -137,6 +137,17 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
     fetchDbStatus();
   }, [financialYears.length, departments.length, categories.length]);
 
+  useEffect(() => {
+    if (settings) {
+      if (settings.companyName) setCompanyName(settings.companyName);
+      if (settings.currencyCode) setCurrencyCode(settings.currencyCode);
+      if (settings.currencySymbol) setCurrencySymbol(settings.currencySymbol);
+      if (settings.currencyName) setCurrencyName(settings.currencyName);
+      if (settings.lowStockGlobalThreshold !== undefined) setLowStockGlobalThreshold(settings.lowStockGlobalThreshold);
+      if (settings.requireDualSignatures !== undefined) setRequireDualSignatures(settings.requireDualSignatures);
+    }
+  }, [settings]);
+
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);

@@ -1,7 +1,7 @@
 <?php
 /**
  * PHP API Endpoint: php_apis/settings.php
- * Handles System Configuration Settings
+ * Handles System Configuration Settings with DB Persistence
  */
 
 require_once __DIR__ . '/db_connection.php';
@@ -12,6 +12,16 @@ $userId = $headers['X-User-Id'] ?? $headers['x-user-id'] ?? 1;
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Ensure system_settings table exists
+$pdo->exec("
+CREATE TABLE IF NOT EXISTS `system_settings` (
+  `setting_key` VARCHAR(100) PRIMARY KEY,
+  `setting_value` TEXT NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+");
+
 // Active FY ID query helper
 function getActiveFyId($pdo) {
     $stmt = $pdo->query("SELECT id FROM financial_years WHERE is_active = TRUE LIMIT 1");
@@ -19,22 +29,65 @@ function getActiveFyId($pdo) {
     return $activeId ? intval($activeId) : 1;
 }
 
+// Helper to load settings map from DB with defaults
+function loadDbSettings($pdo) {
+    $defaults = [
+        'company_name' => 'StockVault Enterprise Warehouse',
+        'currency_code' => 'SZL',
+        'currency_symbol' => 'E',
+        'currency_name' => 'Eswatini Lilangeni',
+        'low_stock_global_threshold' => '5',
+        'require_dual_signatures' => '1',
+        'php_api_base_url' => 'http://localhost/stockvault/api',
+        'php_bridge_mode' => '1'
+    ];
+
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM system_settings");
+    $rows = $stmt->fetchAll();
+    $dbMap = [];
+    foreach ($rows as $r) {
+        $dbMap[$r['setting_key']] = $r['setting_value'];
+    }
+
+    $merged = array_merge($defaults, $dbMap);
+    $activeFyId = getActiveFyId($pdo);
+
+    return [
+        'companyName' => $merged['company_name'],
+        'currencyCode' => $merged['currency_code'],
+        'currencySymbol' => $merged['currency_symbol'],
+        'currencyName' => $merged['currency_name'],
+        'lowStockGlobalThreshold' => intval($merged['low_stock_global_threshold']),
+        'requireDualSignatures' => ($merged['require_dual_signatures'] === '1' || $merged['require_dual_signatures'] === 'true'),
+        'phpApiBaseUrl' => $merged['php_api_base_url'],
+        'phpBridgeMode' => ($merged['php_bridge_mode'] === '1' || $merged['php_bridge_mode'] === 'true'),
+        'activeFinancialYearId' => $activeFyId
+    ];
+}
+
+// Helper to save settings map to DB
+function saveDbSettings($pdo, $input) {
+    $updates = [];
+    if (isset($input['companyName'])) $updates['company_name'] = trim($input['companyName']);
+    if (isset($input['currencyCode'])) $updates['currency_code'] = trim($input['currencyCode']);
+    if (isset($input['currencySymbol'])) $updates['currency_symbol'] = trim($input['currencySymbol']);
+    if (isset($input['currencyName'])) $updates['currency_name'] = trim($input['currencyName']);
+    if (isset($input['lowStockGlobalThreshold'])) $updates['low_stock_global_threshold'] = strval(intval($input['lowStockGlobalThreshold']));
+    if (isset($input['requireDualSignatures'])) $updates['require_dual_signatures'] = !empty($input['requireDualSignatures']) ? '1' : '0';
+    if (isset($input['phpApiBaseUrl'])) $updates['php_api_base_url'] = trim($input['phpApiBaseUrl']);
+    if (isset($input['phpBridgeMode'])) $updates['php_bridge_mode'] = !empty($input['phpBridgeMode']) ? '1' : '0';
+
+    $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    foreach ($updates as $k => $v) {
+        $stmt->execute([$k, $v]);
+    }
+
+    return loadDbSettings($pdo);
+}
+
 switch ($method) {
     case 'GET':
-        $activeFyId = getActiveFyId($pdo);
-        
-        $settings = [
-            'lowStockGlobalThreshold' => 5,
-            'activeFinancialYearId' => $activeFyId,
-            'companyName' => 'StockVault Enterprise Warehouse',
-            'requireDualSignatures' => true,
-            'currencyCode' => 'SZL',
-            'currencySymbol' => 'E',
-            'currencyName' => 'Eswatini Lilangeni',
-            'phpApiBaseUrl' => 'http://localhost/stockvault/api',
-            'phpBridgeMode' => true
-        ];
-
+        $settings = loadDbSettings($pdo);
         echo json_encode(['success' => true, 'settings' => $settings]);
         break;
 
@@ -45,20 +98,8 @@ switch ($method) {
             exit();
         }
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $activeFyId = getActiveFyId($pdo);
-
-        $settings = [
-            'lowStockGlobalThreshold' => intval($input['lowStockGlobalThreshold'] ?? 5),
-            'activeFinancialYearId' => intval($input['activeFinancialYearId'] ?? $activeFyId),
-            'companyName' => trim($input['companyName'] ?? 'StockVault Enterprise Warehouse'),
-            'requireDualSignatures' => isset($input['requireDualSignatures']) ? boolval($input['requireDualSignatures']) : true,
-            'currencyCode' => trim($input['currencyCode'] ?? 'SZL'),
-            'currencySymbol' => trim($input['currencySymbol'] ?? 'E'),
-            'currencyName' => trim($input['currencyName'] ?? 'Eswatini Lilangeni'),
-            'phpApiBaseUrl' => trim($input['phpApiBaseUrl'] ?? 'http://localhost/stockvault/api'),
-            'phpBridgeMode' => true
-        ];
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $settings = saveDbSettings($pdo, $input);
 
         logPhpAudit($pdo, $userId, 'SYSTEM_SETTINGS_UPDATED', 'SETTINGS', 1, $settings);
 
