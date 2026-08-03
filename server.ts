@@ -31,7 +31,7 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  const PHP_BACKEND_URL = process.env.PHP_BACKEND_URL || process.env.VITE_PHP_BACKEND_URL || 'http://127.0.0.1:8000/php_apis';
+  const PHP_BACKEND_URL = process.env.PHP_BACKEND_URL || process.env.VITE_PHP_BACKEND_URL || 'http://127.0.0.1:8000/api';
 
   const forwardToPhp = async (phpScript: string, req: Request, res: Response): Promise<boolean> => {
     try {
