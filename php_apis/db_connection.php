@@ -27,6 +27,20 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+
+    // If script is executed directly (e.g. /api/db/status), output status JSON
+    $scriptName = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
+    if ($scriptName === 'db_connection.php') {
+        echo json_encode([
+            'success' => true,
+            'status' => 'connected',
+            'message' => 'MySQL database connection established successfully via PDO (db_connection.php).',
+            'database' => $db_name,
+            'host' => $db_host,
+            'port' => $db_port
+        ]);
+        exit();
+    }
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([

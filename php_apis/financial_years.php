@@ -15,7 +15,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 switch ($method) {
     case 'GET':
         $stmt = $pdo->query("
-            SELECT id, label, start_date as startDate, end_date as endDate,
+            SELECT id, label, label as yearCode, start_date as startDate, end_date as endDate,
                    is_active as isActive, is_closed as isClosed
             FROM financial_years
             ORDER BY id DESC
@@ -32,10 +32,10 @@ switch ($method) {
         }
 
         $input = json_decode(file_get_contents('php://input'), true);
-        $label = trim($input['label'] ?? '');
+        $label = trim($input['label'] ?? $input['yearCode'] ?? '');
         $startDate = trim($input['startDate'] ?? '');
         $endDate = trim($input['endDate'] ?? '');
-        $isActive = !empty($input['isActive']) ? 1 : 0;
+        $isActive = (!empty($input['isActive']) || !empty($input['setAsActive'])) ? 1 : 0;
 
         if (empty($label) || empty($startDate) || empty($endDate)) {
             http_response_code(400);
@@ -56,7 +56,7 @@ switch ($method) {
 
         logPhpAudit($pdo, $userId, 'FINANCIAL_YEAR_CREATED', 'FINANCIAL_YEAR', $id, ['label' => $label]);
 
-        $fyStmt = $pdo->prepare("SELECT id, label, start_date as startDate, end_date as endDate, is_active as isActive, is_closed as isClosed FROM financial_years WHERE id = ?");
+        $fyStmt = $pdo->prepare("SELECT id, label, label as yearCode, start_date as startDate, end_date as endDate, is_active as isActive, is_closed as isClosed FROM financial_years WHERE id = ?");
         $fyStmt->execute([$id]);
         $financialYear = $fyStmt->fetch();
 
@@ -91,10 +91,10 @@ switch ($method) {
             exit();
         }
 
-        $label = trim($input['label'] ?? '');
+        $label = trim($input['label'] ?? $input['yearCode'] ?? '');
         $startDate = trim($input['startDate'] ?? '');
         $endDate = trim($input['endDate'] ?? '');
-        $isActive = !empty($input['isActive']) ? 1 : 0;
+        $isActive = (!empty($input['isActive']) || !empty($input['setAsActive'])) ? 1 : 0;
 
         if ($isActive) {
             $pdo->query("UPDATE financial_years SET is_active = FALSE");
@@ -109,7 +109,7 @@ switch ($method) {
 
         logPhpAudit($pdo, $userId, 'FINANCIAL_YEAR_UPDATED', 'FINANCIAL_YEAR', $id);
 
-        $fyStmt = $pdo->prepare("SELECT id, label, start_date as startDate, end_date as endDate, is_active as isActive, is_closed as isClosed FROM financial_years WHERE id = ?");
+        $fyStmt = $pdo->prepare("SELECT id, label, label as yearCode, start_date as startDate, end_date as endDate, is_active as isActive, is_closed as isClosed FROM financial_years WHERE id = ?");
         $fyStmt->execute([$id]);
         $financialYear = $fyStmt->fetch();
 
