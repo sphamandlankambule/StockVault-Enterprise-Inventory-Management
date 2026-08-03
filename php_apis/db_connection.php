@@ -56,15 +56,14 @@ try {
 function logPhpAudit($pdo, $userId, $action, $entityType, $entityId = null, $newValues = null) {
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, new_values_json, ip_address)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values_json, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
-            'log-' . time() . '-' . rand(1000, 9999),
             $userId ?? 1,
             $action,
             $entityType,
-            $entityId,
+            $entityId ? strval($entityId) : null,
             $newValues ? json_encode($newValues) : null,
             $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'
         ]);

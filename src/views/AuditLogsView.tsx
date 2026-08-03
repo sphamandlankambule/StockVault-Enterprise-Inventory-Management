@@ -8,16 +8,26 @@ interface AuditLogsViewProps {
 
 export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [actionFilter, setActionFilter] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  const filteredLogs = logs.filter(
-    (log) =>
+  // Extract unique actions for dropdown
+  const uniqueActions = Array.from(new Set(logs.map(l => l.action).filter(Boolean)));
+
+  const filteredLogs = logs.filter((log) => {
+    const s = searchTerm.toLowerCase();
+    const matchesSearch =
       !searchTerm ||
-      log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.ipAddress.includes(searchTerm) ||
-      log.entityId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      (log.action && log.action.toLowerCase().includes(s)) ||
+      (log.userName && log.userName.toLowerCase().includes(s)) ||
+      (log.ipAddress && log.ipAddress.includes(searchTerm)) ||
+      (log.entityId && String(log.entityId).toLowerCase().includes(s)) ||
+      (log.entityType && log.entityType.toLowerCase().includes(s));
+
+    const matchesAction = !actionFilter || log.action === actionFilter;
+
+    return matchesSearch && matchesAction;
+  });
 
   return (
     <div className="space-y-6">
@@ -42,17 +52,32 @@ export const AuditLogsView: React.FC<AuditLogsViewProps> = ({ logs }) => {
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search & Filter Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search action, user name, IP address or entity ID..."
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="relative sm:col-span-2">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search action, user name, IP address or entity ID..."
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          <div>
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+            >
+              <option value="">All Audit Actions</option>
+              {uniqueActions.map((action) => (
+                <option key={action} value={action}>{action}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

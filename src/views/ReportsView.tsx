@@ -73,8 +73,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       } catch {
         console.error('Reports endpoint returned non-JSON response');
       }
-      if (res.ok && data.summary) {
-        setReportData(data.summary);
+      if (res.ok && (data.summary || data.report)) {
+        setReportData(data.summary || data.report);
         setBatchesList(data.batches || []);
         setTxsList(data.transactions || []);
       }

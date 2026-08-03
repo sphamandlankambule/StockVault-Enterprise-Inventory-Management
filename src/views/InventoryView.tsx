@@ -41,15 +41,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onUpdateItemStatus
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFyId, setSelectedFyId] = useState(activeFyId);
-  const [selectedDeptId, setSelectedDeptId] = useState(() => {
+  const [selectedFyId, setSelectedFyId] = useState<string>(String(activeFyId || ''));
+  const [selectedDeptId, setSelectedDeptId] = useState<string>(() => {
     if (currentUser.role !== 'ADMIN' && currentUser.departmentId) {
-      return currentUser.departmentId;
+      return String(currentUser.departmentId);
     }
     return '';
   });
-  const [selectedCatId, setSelectedCatId] = useState('');
+  const [selectedCatId, setSelectedCatId] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
+
+  React.useEffect(() => {
+    if (activeFyId && !selectedFyId) {
+      setSelectedFyId(String(activeFyId));
+    }
+  }, [activeFyId]);
 
   // Item Status Modal state
   const [activeModalItem, setActiveModalItem] = useState<InventoryItem | null>(null);
@@ -60,18 +66,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // Filter Items
   const filteredItems = items.filter((item) => {
     const isUserAdmin = currentUser.role === 'ADMIN';
-    const matchesUserDept = isUserAdmin || !currentUser.departmentId || item.departmentId === currentUser.departmentId;
+    const matchesUserDept = isUserAdmin || !currentUser.departmentId || String(item.departmentId) === String(currentUser.departmentId);
 
     const matchesSearch =
       !searchTerm ||
-      item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.itemCode && item.itemCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.batchNumber && item.batchNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.categoryName && item.categoryName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesFy = !selectedFyId || item.financialYearId === selectedFyId;
-    const matchesDept = !selectedDeptId || item.departmentId === selectedDeptId;
-    const matchesCat = !selectedCatId || item.categoryId === selectedCatId;
+    const matchesFy = !selectedFyId || String(item.financialYearId) === String(selectedFyId);
+    const matchesDept = !selectedDeptId || String(item.departmentId) === String(selectedDeptId);
+    const matchesCat = !selectedCatId || String(item.categoryId) === String(selectedCatId);
     const matchesStatus = !selectedStatus || item.status === selectedStatus;
 
     return matchesUserDept && matchesSearch && matchesFy && matchesDept && matchesCat && matchesStatus;
@@ -150,7 +156,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       {/* Filter & Search Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
           
           {/* Search Box */}
           <div className="relative sm:col-span-2">
@@ -173,7 +179,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             >
               <option value="">All Financial Years</option>
               {financialYears.map(fy => (
-                <option key={fy.id} value={fy.id}>{fy.yearCode}</option>
+                <option key={fy.id} value={fy.id}>{fy.label || fy.yearCode || `FY-${fy.id}`}</option>
               ))}
             </select>
           </div>
@@ -189,6 +195,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               {currentUser.role === 'ADMIN' && <option value="">All Departments</option>}
               {departments.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <select
+              value={selectedCatId}
+              onChange={(e) => setSelectedCatId(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>

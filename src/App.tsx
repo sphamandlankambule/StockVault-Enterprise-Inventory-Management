@@ -234,7 +234,7 @@ export default function App() {
         if (activeFy) setActiveFyId(activeFy.id);
       }
       if (settRes.success) setSettings(settRes.settings);
-      if (auditRes.success) setAuditLogs(auditRes.logs);
+      if (auditRes.success) setAuditLogs(auditRes.logs || auditRes.auditLogs || []);
 
       // Load Department-Scoped Batches, Items, Transactions, and Metrics if authenticated
       const activeFy = fyRes.financialYears?.find((f: FinancialYear) => f.isActive);
@@ -242,8 +242,8 @@ export default function App() {
       const headers = getAuthHeaders(currentUser);
 
       const [batchesRes, itemsRes, txRes, metricsRes] = await Promise.all([
-        safeFetchJson(`/api/stock/batches?financialYearId=${targetFyId}`, { headers }),
-        safeFetchJson(`/api/stock/items?financialYearId=${targetFyId}`, { headers }),
+        safeFetchJson(`/api/stock/batches`, { headers }),
+        safeFetchJson(`/api/stock/items`, { headers }),
         safeFetchJson('/api/transactions', { headers }),
         safeFetchJson(`/api/dashboard/metrics?financialYearId=${targetFyId}`, { headers })
       ]);
@@ -266,8 +266,8 @@ export default function App() {
       const headers = getAuthHeaders(user);
       const [mRes, bRes, iRes, tRes, aRes, dRes] = await Promise.all([
         safeFetchJson(`/api/dashboard/metrics?financialYearId=${fyId}`, { headers }),
-        safeFetchJson(`/api/stock/batches?financialYearId=${fyId}`, { headers }),
-        safeFetchJson(`/api/stock/items?financialYearId=${fyId}`, { headers }),
+        safeFetchJson(`/api/stock/batches`, { headers }),
+        safeFetchJson(`/api/stock/items`, { headers }),
         safeFetchJson('/api/transactions', { headers }),
         safeFetchJson('/api/audit-logs', { headers }),
         safeFetchJson('/api/departments', { headers })
@@ -277,7 +277,7 @@ export default function App() {
       if (bRes.success) setBatches(bRes.batches);
       if (iRes.success) setInventoryItems(iRes.items);
       if (tRes.success) setTransactions(tRes.transactions);
-      if (aRes.success) setAuditLogs(aRes.logs);
+      if (aRes.success) setAuditLogs(aRes.logs || aRes.auditLogs || []);
       if (dRes.success) setDepartments(dRes.departments);
     } catch (e) {
       console.error(e);

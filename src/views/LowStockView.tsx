@@ -41,19 +41,25 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
   onNavigateToStockIn
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFyId, setSelectedFyId] = useState(activeFyId);
-  const [selectedDeptId, setSelectedDeptId] = useState(() => {
+  const [selectedFyId, setSelectedFyId] = useState<string>(String(activeFyId || ''));
+  const [selectedDeptId, setSelectedDeptId] = useState<string>(() => {
     if (currentUser.role !== 'ADMIN' && currentUser.departmentId) {
-      return currentUser.departmentId;
+      return String(currentUser.departmentId);
     }
     return '';
   });
   const [selectedCatId, setSelectedCatId] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<'ALL' | 'OUT_OF_STOCK' | 'CRITICAL' | 'WARNING'>('ALL');
 
+  React.useEffect(() => {
+    if (activeFyId && !selectedFyId) {
+      setSelectedFyId(String(activeFyId));
+    }
+  }, [activeFyId]);
+
   // Helper to get threshold for a category
-  const getCategoryThreshold = (categoryId: string) => {
-    const cat = categories.find(c => c.id === categoryId);
+  const getCategoryThreshold = (categoryId: string | number) => {
+    const cat = categories.find(c => String(c.id) === String(categoryId));
     return cat ? cat.lowStockThreshold : globalThreshold;
   };
 
@@ -65,7 +71,7 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
 
     // User department security check
     const isUserAdmin = currentUser.role === 'ADMIN';
-    const matchesUserDept = isUserAdmin || !currentUser.departmentId || batch.departmentId === currentUser.departmentId;
+    const matchesUserDept = isUserAdmin || !currentUser.departmentId || String(batch.departmentId) === String(currentUser.departmentId);
 
     const matchesSearch =
       !searchTerm ||
@@ -74,9 +80,9 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
       (batch.supplierName && batch.supplierName.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (batch.departmentName && batch.departmentName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesFy = !selectedFyId || batch.financialYearId === selectedFyId;
-    const matchesDept = !selectedDeptId || batch.departmentId === selectedDeptId;
-    const matchesCat = !selectedCatId || batch.categoryId === selectedCatId;
+    const matchesFy = !selectedFyId || String(batch.financialYearId) === String(selectedFyId);
+    const matchesDept = !selectedDeptId || String(batch.departmentId) === String(selectedDeptId);
+    const matchesCat = !selectedCatId || String(batch.categoryId) === String(selectedCatId);
 
     let matchesUrgency = true;
     if (urgencyFilter === 'OUT_OF_STOCK') {
@@ -114,10 +120,11 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
   }>();
 
   batches.forEach(b => {
+    const catKey = String(b.categoryId);
     const threshold = getCategoryThreshold(b.categoryId);
-    const catName = b.categoryName || 'General';
-    const existing = categorySummaryMap.get(b.categoryId) || {
-      categoryId: b.categoryId,
+    const catName = b.categoryName || categories.find(c => String(c.id) === catKey)?.name || 'General';
+    const existing = categorySummaryMap.get(catKey) || {
+      categoryId: catKey,
       categoryName: catName,
       totalAvailable: 0,
       threshold,
@@ -126,7 +133,7 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
     };
 
     const deficit = Math.max(0, threshold - b.availableQuantity);
-    categorySummaryMap.set(b.categoryId, {
+    categorySummaryMap.set(catKey, {
       ...existing,
       totalAvailable: existing.totalAvailable + b.availableQuantity,
       batchesCount: existing.batchesCount + 1,
@@ -392,7 +399,7 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
 
       {/* Filter and Search Controls Bar */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-4 backdrop-blur-xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           
           {/* Search Field */}
           <div className="relative lg:col-span-2">
@@ -404,6 +411,22 @@ export const LowStockView: React.FC<LowStockViewProps> = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-800/90 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
             />
+          </div>
+
+          {/* Financial Year Filter */}
+          <div>
+            <select
+              value={selectedFyId}
+              onChange={(e) => setSelectedFyId(e.target.value)}
+              className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+            >
+              <option value="">All Financial Years</option>
+              {financialYears.map((fy) => (
+                <option key={fy.id} value={fy.id}>
+                  {fy.label} {fy.isActive ? '(Active)' : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Department Filter */}
