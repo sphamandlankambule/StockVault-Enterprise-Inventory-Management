@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $input = json_decode(file_get_contents('php://input'), true);
 
-if (empty($input['batchId']) || empty($input['financialYearId']) || empty($input['departmentId']) || empty($input['receiverName']) || empty($input['receiverDepartmentId'])) {
+if (empty($input['batchId']) || empty($input['receiverName']) || empty($input['receiverDepartmentId'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing required stock out dispatch details']);
     exit();
@@ -25,8 +25,6 @@ $pdo->beginTransaction();
 try {
     $itemId = $input['itemId'] ?? null;
     $batchId = $input['batchId'];
-    $financialYearId = $input['financialYearId'];
-    $departmentId = $input['departmentId'];
     $quantity = intval($input['quantity'] ?? 1);
     $issuerUserId = $input['issuerUserId'] ?? 1;
     $receiverName = trim($input['receiverName']);
@@ -44,6 +42,9 @@ try {
         echo json_encode(['success' => false, 'error' => 'Insufficient available batch stock']);
         exit();
     }
+
+    $financialYearId = $input['financialYearId'] ?? $batch['financial_year_id'];
+    $departmentId = $input['departmentId'] ?? $batch['department_id'];
 
     // 2. Mark specific serialized item if selected
     if (!empty($itemId)) {
@@ -86,10 +87,10 @@ try {
         ");
         $sigStmt->execute([
             $txId,
-            $input['signatures']['issuerBase64'] ?? '',
+            $input['signatures']['issuerSignatureBase64'] ?? $input['signatures']['issuerBase64'] ?? '',
             $input['signatures']['issuerName'] ?? 'Store Keeper',
-            $input['signatures']['receiverBase64'] ?? '',
-            $receiverName,
+            $input['signatures']['receiverSignatureBase64'] ?? $input['signatures']['receiverBase64'] ?? '',
+            $input['signatures']['receiverName'] ?? $receiverName,
             $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
             date('Y-m-d H:i:s')
         ]);

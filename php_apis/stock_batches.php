@@ -54,6 +54,10 @@ switch ($method) {
         echo json_encode(['success' => true, 'batches' => $batches]);
         break;
 
+    case 'POST':
+        require __DIR__ . '/add_stock.php';
+        break;
+
     default:
         http_response_code(405);
         echo json_encode(['error' => 'Method not allowed']);

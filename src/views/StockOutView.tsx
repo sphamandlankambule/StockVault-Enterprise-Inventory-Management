@@ -29,12 +29,12 @@ export const StockOutView: React.FC<StockOutViewProps> = ({
   const activeBatches = batches.filter(b => {
     if (b.availableQuantity <= 0) return false;
     if (currentUser.role !== 'ADMIN' && currentUser.departmentId) {
-      return b.departmentId === currentUser.departmentId;
+      return String(b.departmentId) === String(currentUser.departmentId);
     }
     return true;
   });
 
-  const [selectedBatchId, setSelectedBatchId] = useState(activeBatches[0]?.id || '');
+  const [selectedBatchId, setSelectedBatchId] = useState<string | number>(activeBatches[0]?.id || '');
   const [selectedItemId, setSelectedItemId] = useState('');
   const [quantity, setQuantity] = useState<number | ''>(1);
   const [receiverName, setReceiverName] = useState('Sarah Jenkins');
@@ -49,8 +49,18 @@ export const StockOutView: React.FC<StockOutViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const selectedBatch = batches.find(b => b.id === selectedBatchId);
-  const availableItemsForBatch = inventoryItems.filter(i => i.batchId === selectedBatchId && i.status === 'IN_STOCK');
+  // Sync selectedBatchId when batches load or change
+  React.useEffect(() => {
+    if (activeBatches.length > 0) {
+      const exists = activeBatches.some(b => String(b.id) === String(selectedBatchId));
+      if (!exists || !selectedBatchId) {
+        setSelectedBatchId(activeBatches[0].id);
+      }
+    }
+  }, [batches, currentUser]);
+
+  const selectedBatch = batches.find(b => String(b.id) === String(selectedBatchId));
+  const availableItemsForBatch = inventoryItems.filter(i => String(i.batchId) === String(selectedBatchId) && i.status === 'IN_STOCK');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +89,8 @@ export const StockOutView: React.FC<StockOutViewProps> = ({
       setIsSubmitting(true);
       const payload = {
         batchId: selectedBatch.id,
+        financialYearId: selectedBatch.financialYearId,
+        departmentId: selectedBatch.departmentId,
         itemId: selectedBatch.isSerialized ? selectedItemId || availableItemsForBatch[0]?.id : undefined,
         quantity: selectedBatch.isSerialized ? 1 : Number(quantity) || 1,
         receiverName,
@@ -87,8 +99,10 @@ export const StockOutView: React.FC<StockOutViewProps> = ({
         issuerUserId: currentUser.id,
         signatures: {
           issuerSignatureBase64,
+          issuerBase64: issuerSignatureBase64,
           issuerName,
           receiverSignatureBase64,
+          receiverBase64: receiverSignatureBase64,
           receiverName
         }
       };
