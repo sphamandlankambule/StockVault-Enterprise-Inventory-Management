@@ -90,11 +90,22 @@ async function startServer() {
   });
 
   // All database API actions route via PHP API scripts using db_connection.php
-  app.all('/api/auth', (req, res) => proxyToPhpApi(req, res, 'auth.php'));
+  app.all('/api/auth*', (req, res) => proxyToPhpApi(req, res, 'auth.php'));
   app.all('/api/users*', (req, res) => proxyToPhpApi(req, res, 'users.php'));
-  app.all('/api/add-stock', (req, res) => proxyToPhpApi(req, res, 'add_stock.php'));
-  app.all('/api/stock-out', (req, res) => proxyToPhpApi(req, res, 'stock_out.php'));
+  app.all('/api/departments*', (req, res) => proxyToPhpApi(req, res, 'departments.php'));
+  app.all('/api/categories*', (req, res) => proxyToPhpApi(req, res, 'categories.php'));
+  app.all('/api/financial-years*', (req, res) => proxyToPhpApi(req, res, 'financial_years.php'));
+  app.all('/api/stock/batches*', (req, res) => proxyToPhpApi(req, res, 'stock_batches.php'));
+  app.all('/api/stock/items*', (req, res) => proxyToPhpApi(req, res, 'inventory_items.php'));
+  app.all('/api/stock/dispatch*', (req, res) => proxyToPhpApi(req, res, 'stock_out.php'));
+  app.all('/api/stock/check-serial*', (req, res) => proxyToPhpApi(req, res, 'check_serial.php'));
+  app.all('/api/add-stock*', (req, res) => proxyToPhpApi(req, res, 'add_stock.php'));
+  app.all('/api/stock-out*', (req, res) => proxyToPhpApi(req, res, 'stock_out.php'));
+  app.all('/api/transactions*', (req, res) => proxyToPhpApi(req, res, 'transactions.php'));
+  app.all('/api/audit-logs*', (req, res) => proxyToPhpApi(req, res, 'audit_logs.php'));
+  app.all('/api/settings*', (req, res) => proxyToPhpApi(req, res, 'settings.php'));
   app.all('/api/reports*', (req, res) => proxyToPhpApi(req, res, 'reports.php'));
+  app.all('/api/dashboard/metrics*', (req, res) => proxyToPhpApi(req, res, 'dashboard_metrics.php'));
 
   // Catch-all for any other /api/* route - forward to PHP API or return db_connection.php error
   app.all('/api/*', (req: Request, res: Response) => {

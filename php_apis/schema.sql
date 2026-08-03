@@ -115,6 +115,12 @@ CREATE TABLE IF NOT EXISTS `stock_batches` (
   FOREIGN KEY (`received_by_user_id`) REFERENCES `users`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT INTO `stock_batches` (`id`, `batch_number`, `category_id`, `department_id`, `financial_year_id`, `supplier_name`, `unit_cost`, `is_serialized`, `total_quantity`, `available_quantity`, `status`, `received_by_user_id`) VALUES
+(1, 'BATCH-2025-001', 1, 1, 1, 'Lenovo Enterprise Direct', 18500.00, TRUE, 5, 3, 'ACTIVE', 2),
+(2, 'BATCH-2025-002', 2, 2, 1, 'Dell PowerEdge Systems', 85000.00, TRUE, 2, 1, 'ACTIVE', 2),
+(3, 'BATCH-2025-003', 4, 1, 1, 'Cisco Cabling & Infra Supplies', 450.00, FALSE, 100, 75, 'ACTIVE', 2)
+ON DUPLICATE KEY UPDATE `available_quantity` = VALUES(`available_quantity`);
+
 -- 7. Inventory Items Table (Serialized Items)
 CREATE TABLE IF NOT EXISTS `inventory_items` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -132,6 +138,16 @@ CREATE TABLE IF NOT EXISTS `inventory_items` (
   FOREIGN KEY (`department_id`) REFERENCES `departments`(`id`),
   FOREIGN KEY (`financial_year_id`) REFERENCES `financial_years`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `inventory_items` (`id`, `batch_id`, `item_code`, `serial_number`, `category_id`, `department_id`, `financial_year_id`, `status`, `unit_cost`) VALUES
+(1, 1, 'CAT-LAPTOP-000001', 'LNV-TP-99201', 1, 1, 1, 'IN_STOCK', 18500.00),
+(2, 1, 'CAT-LAPTOP-000002', 'LNV-TP-99202', 1, 1, 1, 'IN_STOCK', 18500.00),
+(3, 1, 'CAT-LAPTOP-000003', 'LNV-TP-99203', 1, 1, 1, 'IN_STOCK', 18500.00),
+(4, 1, 'CAT-LAPTOP-000004', 'LNV-TP-99204', 1, 1, 1, 'ISSUED', 18500.00),
+(5, 1, 'CAT-LAPTOP-000005', 'LNV-TP-99205', 1, 1, 1, 'ISSUED', 18500.00),
+(6, 2, 'CAT-SERVERS-000001', 'DELL-PE-8801', 2, 2, 1, 'IN_STOCK', 85000.00),
+(7, 2, 'CAT-SERVERS-000002', 'DELL-PE-8802', 2, 2, 1, 'ISSUED', 85000.00)
+ON DUPLICATE KEY UPDATE `status` = VALUES(`status`);
 
 -- 8. Stock Transactions Table
 CREATE TABLE IF NOT EXISTS `stock_transactions` (
@@ -158,6 +174,12 @@ CREATE TABLE IF NOT EXISTS `stock_transactions` (
   FOREIGN KEY (`issued_by_user_id`) REFERENCES `users`(`id`),
   FOREIGN KEY (`receiver_department_id`) REFERENCES `departments`(`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `stock_transactions` (`id`, `transaction_code`, `type`, `batch_id`, `item_id`, `financial_year_id`, `department_id`, `quantity`, `unit_cost`, `total_value`, `issued_by_user_id`, `received_by_name`, `receiver_department_id`, `remarks`) VALUES
+(1, 'TX-IN-2025-001', 'STOCK_IN', 1, NULL, 1, 1, 5, 18500.00, 92500.00, 2, 'Marcus Vance', 1, 'Initial batch intake for FY 2025-2026 ThinkPad Laptops'),
+(2, 'TX-OUT-2025-001', 'STOCK_OUT', 1, 4, 1, 1, 1, 18500.00, 18500.00, 2, 'Sarah Jenkins', 3, 'Issued ThinkPad LNV-TP-99204 to Finance Department'),
+(3, 'TX-OUT-2025-002', 'STOCK_OUT', 1, 5, 1, 1, 1, 18500.00, 18500.00, 2, 'Sarah Jenkins', 3, 'Issued ThinkPad LNV-TP-99205 to Finance Department')
+ON DUPLICATE KEY UPDATE `transaction_code` = VALUES(`transaction_code`);
 
 -- 9. Dual Signatures Table
 CREATE TABLE IF NOT EXISTS `signatures` (
