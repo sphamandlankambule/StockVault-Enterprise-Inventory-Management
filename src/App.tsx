@@ -587,21 +587,19 @@ export default function App() {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-white tracking-tight">Database Connection Failed</h2>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Static application values have been removed as requested. All data must come directly from your MySQL database via backend APIs, but a connection could not be established.
+              Database connection is managed strictly via <code className="text-amber-300 font-mono">php_apis/db_connection.php</code> using PDO. All static fallback data has been removed, and connection could not be established.
             </p>
           </div>
           <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-left font-mono text-xs text-red-400 font-semibold space-y-1 overflow-x-auto">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">MySQL Error Details</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">PHP PDO / MySQL Connection Error</div>
             <div className="break-words">{dbError}</div>
           </div>
           <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 text-left space-y-1.5 text-xs text-slate-300">
-            <div className="font-semibold text-slate-200 text-[11px] uppercase tracking-wider">Required MySQL Configuration (.env):</div>
+            <div className="font-semibold text-slate-200 text-[11px] uppercase tracking-wider">PHP Database Connection Script:</div>
             <div className="font-mono text-[11px] text-slate-400 space-y-0.5">
-              <div>DB_HOST=127.0.0.1 (or your MySQL host IP)</div>
-              <div>DB_PORT=3306</div>
-              <div>DB_NAME=stockvault_db</div>
-              <div>DB_USER=root</div>
-              <div>DB_PASS=your_password</div>
+              <div>File: <span className="text-slate-200">php_apis/db_connection.php</span></div>
+              <div>Connection Mode: <span className="text-emerald-400">PDO MySQL</span></div>
+              <div>Host Config: <span className="text-slate-300">$db_host (DB_HOST / MYSQL_HOST)</span></div>
             </div>
           </div>
           <button
