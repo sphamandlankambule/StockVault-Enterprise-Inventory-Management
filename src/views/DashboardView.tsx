@@ -42,7 +42,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="z-10 space-y-1.5">
           <div className="flex items-center space-x-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-3 py-1 rounded-full">
-              Financial Year {metrics.activeFinancialYear}
+              Financial Year {metrics?.activeFinancialYear || activeFy?.yearCode || '2025-2026'}
             </span>
             <span className="text-xs text-slate-500 font-mono">• REALTIME_VALUATION_LEDGER</span>
           </div>
@@ -85,10 +85,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div>
             <div className="text-3xl font-light text-white tracking-tight italic">
-              {fmt(metrics.totalInventoryValuation)}
+              {fmt(metrics?.totalInventoryValuation ?? 0)}
             </div>
             <div className="text-[11px] text-slate-400 mt-1 flex items-center space-x-1">
-              <span className="text-sky-400 font-medium">FY {metrics.activeFinancialYear}</span>
+              <span className="text-sky-400 font-medium">FY {metrics?.activeFinancialYear || activeFy?.yearCode || '2025-2026'}</span>
               <span>• Total Ledger Asset Value</span>
             </div>
           </div>
@@ -104,10 +104,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div>
             <div className="text-3xl font-light text-white tracking-tight italic">
-              {metrics.totalItemsCount.toLocaleString()} <span className="text-xs font-normal text-slate-500">Units</span>
+              {(metrics?.totalItemsCount ?? 0).toLocaleString()} <span className="text-xs font-normal text-slate-500">Units</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              <span className="text-indigo-400 font-medium">{metrics.totalSerializedCount}</span> Serialized Items Tracked
+              <span className="text-indigo-400 font-medium">{metrics?.totalSerializedCount ?? 0}</span> Serialized Items Tracked
             </div>
           </div>
         </div>
@@ -116,20 +116,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div
           onClick={() => onNavigate && onNavigate('low-stock')}
           className={`bg-slate-900/40 border rounded-2xl p-5 space-y-3 relative overflow-hidden group transition-all backdrop-blur-sm shadow-xl cursor-pointer ${
-            metrics.lowStockAlertsCount > 0 ? 'border-amber-500/40 bg-amber-500/5 hover:border-amber-500 hover:scale-[1.01]' : 'border-slate-800 hover:border-sky-500/50 hover:scale-[1.01]'
+            (metrics?.lowStockAlertsCount ?? 0) > 0 ? 'border-amber-500/40 bg-amber-500/5 hover:border-amber-500 hover:scale-[1.01]' : 'border-slate-800 hover:border-sky-500/50 hover:scale-[1.01]'
           }`}
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Low-Stock Alerts</span>
             <div className={`p-2 rounded-xl border ${
-              metrics.lowStockAlertsCount > 0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-slate-800/80 text-slate-400 border-slate-700'
+              (metrics?.lowStockAlertsCount ?? 0) > 0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-slate-800/80 text-slate-400 border-slate-700'
             }`}>
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <div className={`text-3xl font-light tracking-tight italic ${metrics.lowStockAlertsCount > 0 ? 'text-amber-400 font-semibold' : 'text-white'}`}>
-              {metrics.lowStockAlertsCount} <span className="text-xs font-normal text-slate-500">Batches</span>
+            <div className={`text-3xl font-light tracking-tight italic ${(metrics?.lowStockAlertsCount ?? 0) > 0 ? 'text-amber-400 font-semibold' : 'text-white'}`}>
+              {metrics?.lowStockAlertsCount ?? 0} <span className="text-xs font-normal text-slate-500">Batches</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1 flex items-center justify-between">
               <span>Below threshold level</span>
@@ -148,10 +148,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div>
             <div className="text-3xl font-light text-emerald-400 tracking-tight italic">
-              {fmt(metrics.monthlyStockOutValue)}
+              {fmt(metrics?.monthlyStockOutValue ?? 0)}
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              Out of {fmt(metrics.monthlyStockInValue)} total incoming
+              Out of {fmt(metrics?.monthlyStockInValue ?? 0)} total incoming
             </div>
           </div>
         </div>
@@ -172,8 +172,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="space-y-3">
-            {metrics.departmentBreakdown.map((dept, idx) => {
-              const maxVal = Math.max(...metrics.departmentBreakdown.map(d => d.value), 1);
+            {(metrics?.departmentBreakdown || []).map((dept, idx) => {
+              const maxVal = Math.max(...(metrics?.departmentBreakdown || []).map(d => d.value), 1);
               const percentage = Math.round((dept.value / maxVal) * 100);
 
               return (
@@ -207,8 +207,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="space-y-3">
-            {metrics.categoryBreakdown.map((cat, idx) => {
-              const maxCount = Math.max(...metrics.categoryBreakdown.map(c => c.count), 1);
+            {(metrics?.categoryBreakdown || []).map((cat, idx) => {
+              const maxCount = Math.max(...(metrics?.categoryBreakdown || []).map(c => c.count), 1);
               const percentage = Math.round((cat.count / maxCount) * 100);
 
               return (
