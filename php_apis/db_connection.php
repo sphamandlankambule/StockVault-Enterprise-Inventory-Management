@@ -1,6 +1,6 @@
 <?php
 /**
- * StockVault Enterprise - Database Connection Script (PDO)
+ * StockVault Enterprise - Database Connection Script (MySQL PDO)
  * File: php_apis/db_connection.php
  */
 
@@ -14,11 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$db_host = getenv('DB_HOST') ?: '127.0.0.1';
-$db_port = getenv('DB_PORT') ?: '3306';
-$db_name = getenv('DB_NAME') ?: 'stockvault_db';
-$db_user = getenv('DB_USER') ?: 'root';
-$db_pass = getenv('DB_PASS') ?: '';
+$db_host = getenv('DB_HOST') ?: (getenv('MYSQL_HOST') ?: '127.0.0.1');
+$db_port = getenv('DB_PORT') ?: (getenv('MYSQL_PORT') ?: '3306');
+$db_name = getenv('DB_NAME') ?: (getenv('MYSQL_DATABASE') ?: 'stockvault_db');
+$db_user = getenv('DB_USER') ?: (getenv('MYSQL_USER') ?: 'root');
+$db_pass = getenv('DB_PASS') ?: (getenv('MYSQL_PASSWORD') ?: '');
 
 try {
     $dsn = "mysql:host={$db_host};port={$db_port};dbname={$db_name};charset=utf8mb4";
@@ -28,11 +28,10 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 } catch (PDOException $e) {
-    // If database connection fails, send structured JSON error
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Database connection failed: ' . $e->getMessage()
+        'error' => 'Database Connection Failed: Unable to connect to MySQL database (' . $e->getMessage() . ')'
     ]);
     exit();
 }
@@ -43,10 +42,11 @@ try {
 function logPhpAudit($pdo, $userId, $action, $entityType, $entityId = null, $newValues = null) {
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_values_json, ip_address)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, new_values_json, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
+            'log-' . time() . '-' . rand(1000, 9999),
             $userId ?? 1,
             $action,
             $entityType,
@@ -58,3 +58,5 @@ function logPhpAudit($pdo, $userId, $action, $entityType, $entityId = null, $new
         // Silently handle audit log errors to prevent blocking main transaction
     }
 }
+
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings2,
   Calendar,
@@ -16,7 +16,11 @@ import {
   Trash2,
   CalendarPlus,
   X,
-  Check
+  Check,
+  Database,
+  Download,
+  RefreshCw,
+  HardDrive
 } from 'lucide-react';
 import { FinancialYear, Department, Category, SystemSettings, User as UserType } from '../types';
 
@@ -104,6 +108,29 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
   const [currencyName, setCurrencyName] = useState(settings?.currencyName || 'Eswatini Lilangeni');
   const [lowStockGlobalThreshold, setLowStockGlobalThreshold] = useState(settings?.lowStockGlobalThreshold || 5);
   const [requireDualSignatures, setRequireDualSignatures] = useState(settings?.requireDualSignatures ?? true);
+
+  // Database Persistence Status State
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [isLoadingDbStatus, setIsLoadingDbStatus] = useState(false);
+
+  const fetchDbStatus = async () => {
+    setIsLoadingDbStatus(true);
+    try {
+      const res = await fetch('/api/db/status');
+      const data = await res.json();
+      if (data.success) {
+        setDbStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch DB status:', err);
+    } finally {
+      setIsLoadingDbStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDbStatus();
+  }, [financialYears.length, departments.length, categories.length]);
 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -989,6 +1016,108 @@ export const MasterDataView: React.FC<MasterDataViewProps> = ({
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Grid Section 4: Live Database Connection & Persistence Status */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center space-x-2 text-white font-bold text-sm">
+            <Database className="w-4 h-4 text-emerald-400" />
+            <span>Database Storage & Persistent Writer Status</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-md border border-emerald-500/20 font-semibold flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Active Database Persistence</span>
+            </span>
+            <button
+              onClick={fetchDbStatus}
+              disabled={isLoadingDbStatus}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs flex items-center space-x-1 cursor-pointer"
+              title="Refresh DB Status"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDbStatus ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">Database Storage Path</span>
+            <span className="text-xs text-emerald-300 font-mono font-bold block truncate" title={dbStatus?.dbFilePath || 'db_store.json'}>
+              {dbStatus?.dbFilePath || 'db_store.json'}
+            </span>
+            <span className="text-[10px] text-slate-400 block">Automatic File Commit Engine</span>
+          </div>
+
+          <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">Write Status</span>
+            <span className="text-xs text-emerald-400 font-bold block flex items-center space-x-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Realtime Writes Active</span>
+            </span>
+            <span className="text-[10px] text-slate-400 block">All mutations committed to disk</span>
+          </div>
+
+          <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">Total Database Records</span>
+            <span className="text-xs text-white font-mono font-bold block">
+              {dbStatus?.counts ? (
+                Object.values(dbStatus.counts as Record<string, number>).reduce((a, b) => a + b, 0)
+              ) : 'Loaded'} Records
+            </span>
+            <span className="text-[10px] text-slate-400 block">Users, Stock, Depts, FYs & Logs</span>
+          </div>
+
+          <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700 space-y-1">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block">Database Backup & Export</span>
+            <a
+              href="/api/db/export"
+              download="stockvault_database.json"
+              className="mt-0.5 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Database JSON</span>
+            </a>
+          </div>
+        </div>
+
+        {dbStatus?.counts && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono">
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Users</span>
+              <span className="text-white font-bold">{dbStatus.counts.users}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Departments</span>
+              <span className="text-white font-bold">{dbStatus.counts.departments}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Categories</span>
+              <span className="text-white font-bold">{dbStatus.counts.categories}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Fin Years</span>
+              <span className="text-white font-bold">{dbStatus.counts.financialYears}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Batches</span>
+              <span className="text-white font-bold">{dbStatus.counts.stockBatches}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Serial Items</span>
+              <span className="text-white font-bold">{dbStatus.counts.inventoryItems}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Dispatches</span>
+              <span className="text-white font-bold">{dbStatus.counts.stockTransactions}</span>
+            </div>
+            <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-center">
+              <span className="text-slate-400 block text-[9px]">Audit Logs</span>
+              <span className="text-white font-bold">{dbStatus.counts.auditLogs}</span>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>

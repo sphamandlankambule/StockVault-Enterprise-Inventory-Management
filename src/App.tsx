@@ -178,16 +178,24 @@ export default function App() {
         settRes,
         auditRes
       ] = await Promise.all([
-        fetch('/api/users').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
-        fetch('/api/departments').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
-        fetch('/api/categories').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
-        fetch('/api/financial-years').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
-        fetch('/api/settings').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' })),
-        fetch('/api/audit-logs').then((r) => r.json()).catch(() => ({ success: false, error: 'Database Connecion Failed' }))
+        fetch('/api/users').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
+        fetch('/api/departments').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
+        fetch('/api/categories').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
+        fetch('/api/financial-years').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
+        fetch('/api/settings').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' })),
+        fetch('/api/audit-logs').then((r) => r.json()).catch((e) => ({ success: false, error: e?.message || 'Database Connection Failed' }))
       ]);
 
       if (!usersRes.success || !deptRes.success || !catRes.success || !fyRes.success) {
-        setDbError("Database Connecion Failed");
+        const errorDetail =
+          usersRes.error ||
+          deptRes.error ||
+          catRes.error ||
+          fyRes.error ||
+          settRes.error ||
+          auditRes.error ||
+          'Database Connection Failed: Unable to connect to MySQL database';
+        setDbError(errorDetail);
         return;
       } else {
         setDbError(null);
@@ -221,9 +229,9 @@ export default function App() {
       if (txRes.success) setTransactions(txRes.transactions);
       if (metricsRes.success) setMetrics(metricsRes.metrics);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load initial data:', error);
-      setDbError("Database Connecion Failed");
+      setDbError(error?.message || "Database Connection Failed: Unable to connect to MySQL database");
     } finally {
       setIsLoading(false);
     }
@@ -572,19 +580,29 @@ export default function App() {
   if (dbError) {
     return (
       <div className="min-h-screen bg-[#020617] text-slate-100 flex items-center justify-center p-4 relative overflow-hidden select-none">
-        <div className="bg-slate-900/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl relative z-10">
+        <div className="bg-slate-900/90 backdrop-blur-xl border border-red-500/30 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-6 shadow-2xl relative z-10">
           <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl w-fit mx-auto text-red-400">
             <AlertTriangle className="w-10 h-10" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-white tracking-tight">Database Connecion Failed</h2>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Database Connection Failed</h2>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Default application values have been removed. All data must come directly from the database, but a connection could not be established.
+              Static application values have been removed as requested. All data must come directly from your MySQL database via backend APIs, but a connection could not be established.
             </p>
           </div>
-          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-left font-mono text-xs text-red-400 font-semibold space-y-1">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">Error Message</div>
-            <div>Database Connecion Failed</div>
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-left font-mono text-xs text-red-400 font-semibold space-y-1 overflow-x-auto">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">MySQL Error Details</div>
+            <div className="break-words">{dbError}</div>
+          </div>
+          <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 text-left space-y-1.5 text-xs text-slate-300">
+            <div className="font-semibold text-slate-200 text-[11px] uppercase tracking-wider">Required MySQL Configuration (.env):</div>
+            <div className="font-mono text-[11px] text-slate-400 space-y-0.5">
+              <div>DB_HOST=127.0.0.1 (or your MySQL host IP)</div>
+              <div>DB_PORT=3306</div>
+              <div>DB_NAME=stockvault_db</div>
+              <div>DB_USER=root</div>
+              <div>DB_PASS=your_password</div>
+            </div>
           </div>
           <button
             onClick={() => {
