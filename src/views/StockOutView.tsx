@@ -198,7 +198,7 @@ export const StockOutView: React.FC<StockOutViewProps> = ({
                   <option value="">Auto-select First Available Item</option>
                   {availableItemsForBatch.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.itemCode} - SN: {item.serialNumber}
+                      Serial No: {item.serialNumber} ({item.itemCode})
                     </option>
                   ))}
                 </select>

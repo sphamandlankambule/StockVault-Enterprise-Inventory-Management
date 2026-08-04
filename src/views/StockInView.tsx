@@ -126,6 +126,7 @@ export const StockInView: React.FC<StockInViewProps> = ({
         isSerialized,
         quantity: isSerialized ? serialList.length : Number(quantity) || 1,
         serials: isSerialized ? serialList : [],
+        serialNumbers: isSerialized ? serialList : [],
         remarks,
         receivedByUserId: currentUser.id
       };

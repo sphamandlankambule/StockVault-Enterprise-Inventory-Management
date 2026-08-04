@@ -1,9 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
-import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import mysql, { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
-import initSqlJs, { Database } from 'sql.js';
 import bcrypt from 'bcryptjs';
 import { UserRole } from './src/types';
 
@@ -19,234 +17,203 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  connectTimeout: 2000
+  connectTimeout: 5000
 };
 
 const pool = mysql.createPool(dbConfig);
-
 let isMysqlConnected = false;
-let sqlJsDb: Database | null = null;
-const dbFilePath = path.join(process.cwd(), 'stockvault.db');
 
-function saveDbToDisk() {
-  if (sqlJsDb) {
-    try {
-      const data = sqlJsDb.export();
-      const buffer = Buffer.from(data);
-      fs.writeFileSync(dbFilePath, buffer);
-    } catch (e) {
-      console.warn('[sql.js Persistence Warning]:', e);
-    }
-  }
-}
-
-async function initSqliteEngine(): Promise<void> {
-  const SQL = await initSqlJs();
-  if (fs.existsSync(dbFilePath)) {
-    try {
-      const filebuffer = fs.readFileSync(dbFilePath);
-      sqlJsDb = new SQL.Database(filebuffer);
-      console.log('[sql.js Engine]: Loaded existing database file from', dbFilePath);
-    } catch (e) {
-      console.warn('[sql.js Engine]: Could not load existing file, initializing new DB:', e);
-      sqlJsDb = new SQL.Database();
-    }
-  } else {
-    sqlJsDb = new SQL.Database();
-    console.log('[sql.js Engine]: Initialized new database instance');
+async function initMysqlDatabase(): Promise<void> {
+  // 1. Attempt to create database if missing on MySQL host
+  try {
+    const rootConn = await mysql.createConnection({
+      host: dbConfig.host,
+      port: dbConfig.port,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      connectTimeout: 5000
+    });
+    await rootConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
+    await rootConn.end();
+  } catch (err: any) {
+    console.warn('[MySQL Database Check Notice]:', err.message);
   }
 
-  sqlJsDb.run(`
-    CREATE TABLE IF NOT EXISTS departments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      description TEXT,
-      is_active INTEGER DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  // 2. Ensure all relational tables exist in MySQL
+  const ddlStatements = [
+    `CREATE TABLE IF NOT EXISTS departments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(20) NOT NULL UNIQUE,
+      name VARCHAR(100) NOT NULL,
+      description TEXT NULL,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS roles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      description TEXT NOT NULL
-    );
+    `CREATE TABLE IF NOT EXISTS roles (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(50) NOT NULL UNIQUE,
+      description VARCHAR(255) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      role_id INTEGER NOT NULL,
-      department_id INTEGER NOT NULL,
-      username TEXT NOT NULL UNIQUE,
-      full_name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      status TEXT DEFAULT 'ACTIVE',
-      created_by INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      role_id INT NOT NULL,
+      department_id INT NOT NULL,
+      username VARCHAR(50) NOT NULL UNIQUE,
+      full_name VARCHAR(100) NOT NULL,
+      email VARCHAR(150) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      status ENUM('ACTIVE', 'INACTIVE') DEFAULT 'ACTIVE',
+      created_by INT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (role_id) REFERENCES roles(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      description TEXT,
-      is_serialized INTEGER DEFAULT 1,
-      reorder_level INTEGER DEFAULT 5
-    );
-
-    CREATE TABLE IF NOT EXISTS financial_years (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      label TEXT NOT NULL UNIQUE,
+    `CREATE TABLE IF NOT EXISTS financial_years (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      label VARCHAR(20) NOT NULL UNIQUE,
       start_date DATE NOT NULL,
       end_date DATE NOT NULL,
-      is_active INTEGER DEFAULT 0,
-      is_closed INTEGER DEFAULT 0
-    );
+      is_active BOOLEAN DEFAULT FALSE,
+      is_closed BOOLEAN DEFAULT FALSE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS stock_batches (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      batch_number TEXT NOT NULL UNIQUE,
-      category_id INTEGER NOT NULL,
-      department_id INTEGER NOT NULL,
-      financial_year_id INTEGER NOT NULL,
-      supplier_name TEXT NOT NULL,
-      unit_cost REAL NOT NULL DEFAULT 0.00,
-      is_serialized INTEGER DEFAULT 1,
-      total_quantity INTEGER NOT NULL,
-      available_quantity INTEGER NOT NULL,
-      status TEXT DEFAULT 'ACTIVE',
-      received_by_user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(20) NOT NULL UNIQUE,
+      name VARCHAR(100) NOT NULL,
+      description VARCHAR(255) NULL,
+      is_serialized BOOLEAN DEFAULT TRUE,
+      reorder_level INT DEFAULT 10
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS inventory_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      batch_id INTEGER NOT NULL,
-      item_code TEXT NOT NULL UNIQUE,
-      serial_number TEXT UNIQUE,
-      category_id INTEGER NOT NULL,
-      department_id INTEGER NOT NULL,
-      financial_year_id INTEGER NOT NULL,
-      status TEXT DEFAULT 'IN_STOCK',
-      unit_cost REAL NOT NULL DEFAULT 0.00,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS stock_batches (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      batch_number VARCHAR(50) NOT NULL UNIQUE,
+      category_id INT NOT NULL,
+      department_id INT NOT NULL,
+      financial_year_id INT NOT NULL,
+      supplier_name VARCHAR(100) NOT NULL,
+      unit_cost DECIMAL(12, 2) NOT NULL,
+      is_serialized BOOLEAN DEFAULT TRUE,
+      total_quantity INT NOT NULL,
+      available_quantity INT NOT NULL,
+      status ENUM('ACTIVE', 'DEPLETED', 'DECOMMISSIONED') DEFAULT 'ACTIVE',
+      received_by_user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (category_id) REFERENCES categories(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (financial_year_id) REFERENCES financial_years(id),
+      FOREIGN KEY (received_by_user_id) REFERENCES users(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS stock_transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      transaction_code TEXT NOT NULL UNIQUE,
-      type TEXT NOT NULL,
-      batch_id INTEGER NOT NULL,
-      item_id INTEGER,
-      financial_year_id INTEGER NOT NULL,
-      department_id INTEGER NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_cost REAL NOT NULL,
-      total_value REAL NOT NULL,
-      issued_by_user_id INTEGER NOT NULL,
-      received_by_name TEXT NOT NULL,
-      receiver_department_id INTEGER NOT NULL,
-      remarks TEXT,
-      ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS inventory_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      batch_id INT NOT NULL,
+      item_code VARCHAR(50) NOT NULL UNIQUE,
+      serial_number VARCHAR(100) NOT NULL UNIQUE,
+      category_id INT NOT NULL,
+      department_id INT NOT NULL,
+      financial_year_id INT NOT NULL,
+      status ENUM('IN_STOCK', 'ISSUED', 'MAINTENANCE', 'DECOMMISSIONED') DEFAULT 'IN_STOCK',
+      unit_cost DECIMAL(12, 2) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES stock_batches(id) ON DELETE CASCADE,
+      FOREIGN KEY (category_id) REFERENCES categories(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (financial_year_id) REFERENCES financial_years(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS signatures (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      transaction_id INTEGER NOT NULL,
-      issuer_signature_base64 TEXT NOT NULL,
-      issuer_name TEXT NOT NULL,
-      issuer_role TEXT NOT NULL,
-      receiver_signature_base64 TEXT NOT NULL,
-      receiver_name TEXT NOT NULL,
-      receiver_role TEXT NOT NULL,
-      ip_address TEXT,
-      device_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS stock_transactions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      transaction_code VARCHAR(50) NOT NULL UNIQUE,
+      type ENUM('STOCK_IN', 'STOCK_OUT', 'TRANSFER', 'ADJUSTMENT') NOT NULL,
+      batch_id INT NOT NULL,
+      item_id INT NULL,
+      financial_year_id INT NOT NULL,
+      department_id INT NOT NULL,
+      quantity INT NOT NULL,
+      unit_cost DECIMAL(12, 2) NOT NULL,
+      total_value DECIMAL(14, 2) NOT NULL,
+      issued_by_user_id INT NOT NULL,
+      received_by_name VARCHAR(100) NOT NULL,
+      receiver_department_id INT NOT NULL,
+      remarks TEXT NULL,
+      ip_address VARCHAR(45) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (batch_id) REFERENCES stock_batches(id),
+      FOREIGN KEY (item_id) REFERENCES inventory_items(id),
+      FOREIGN KEY (financial_year_id) REFERENCES financial_years(id),
+      FOREIGN KEY (department_id) REFERENCES departments(id),
+      FOREIGN KEY (issued_by_user_id) REFERENCES users(id),
+      FOREIGN KEY (receiver_department_id) REFERENCES departments(id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      action TEXT NOT NULL,
-      entity_type TEXT NOT NULL,
-      entity_id TEXT,
-      new_values_json TEXT,
-      ip_address TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+    `CREATE TABLE IF NOT EXISTS signatures (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      transaction_id INT NOT NULL UNIQUE,
+      issuer_signature_base64 MEDIUMTEXT NOT NULL,
+      issuer_name VARCHAR(100) NOT NULL,
+      issuer_role VARCHAR(50) NOT NULL,
+      receiver_signature_base64 MEDIUMTEXT NOT NULL,
+      receiver_name VARCHAR(100) NOT NULL,
+      receiver_role VARCHAR(50) NOT NULL,
+      ip_address VARCHAR(45) NOT NULL,
+      device_timestamp DATETIME NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (transaction_id) REFERENCES stock_transactions(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
-    CREATE TABLE IF NOT EXISTS system_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      setting_key TEXT NOT NULL UNIQUE,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NULL,
+      action VARCHAR(100) NOT NULL,
+      entity_type VARCHAR(50) NOT NULL,
+      entity_id VARCHAR(50) NULL,
+      new_values_json JSON NULL,
+      ip_address VARCHAR(45) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key VARCHAR(100) PRIMARY KEY,
       setting_value TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+      description TEXT DEFAULT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+  ];
 
-  await seedSqliteDefaults();
-  saveDbToDisk();
-}
+  for (const stmt of ddlStatements) {
+    try {
+      await pool.query(stmt);
+    } catch (err: any) {
+      console.warn('[MySQL DDL Statement Warning]:', err.message);
+    }
+  }
 
-async function seedSqliteDefaults() {
-  if (!sqlJsDb) return;
-  console.log('[sql.js Engine]: Ensuring core system roles are populated...');
-  sqlJsDb.run(`
-    INSERT OR IGNORE INTO roles (id, name, description) VALUES
+  // Ensure core system roles exist in MySQL
+  await pool.query(`
+    INSERT INTO roles (id, name, description) VALUES
     (1, 'ADMIN', 'System Director with full administrative permissions'),
     (2, 'STORE_KEEPER', 'Chief Store Keeper with Stock In/Out and inventory authority'),
-    (3, 'STAFF_RECEIVER', 'Staff Lead authorized to request and receive department inventory');
+    (3, 'STAFF_RECEIVER', 'Staff Lead authorized to request and receive department inventory')
+    ON DUPLICATE KEY UPDATE description = VALUES(description);
   `);
+
+  isMysqlConnected = true;
+  console.log('[MySQL Driver]: Connected and verified database schema.');
 }
 
-async function querySqlite(sql: string, params: any[] = []): Promise<any> {
-  if (!sqlJsDb) throw new Error('Database engine is uninitialized');
-
-  let processedSql = sql.replace(/NOW\(\)/gi, "datetime('now')");
-
-  if (processedSql.toLowerCase().includes('on duplicate key update')) {
-    processedSql = processedSql
-      .replace(/^INSERT INTO/i, 'INSERT OR REPLACE INTO')
-      .replace(/ON DUPLICATE KEY UPDATE[\s\S]*/i, '');
-  }
-
-  const isSelect = processedSql.trim().toUpperCase().startsWith('SELECT');
-
-  if (isSelect) {
-    const stmt = sqlJsDb.prepare(processedSql);
-    stmt.bind(params);
-    const result: any[] = [];
-    while (stmt.step()) {
-      result.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return result;
-  } else {
-    sqlJsDb.run(processedSql, params);
-    saveDbToDisk();
-    const lastIdRes = sqlJsDb.exec('SELECT last_insert_rowid() as id');
-    const insertId = lastIdRes[0]?.values[0]?.[0] || 0;
-    return { insertId: Number(insertId), affectedRows: 1 };
-  }
-}
-
-// Database Query Execution Wrapper with Connection Failover Handling
+// Database Query Execution Wrapper for MySQL
 async function dbQuery<T = any>(sql: string, params: any[] = []): Promise<T> {
-  if (isMysqlConnected) {
-    try {
-      const [rows] = await pool.execute(sql, params);
-      return rows as T;
-    } catch (err: any) {
-      console.warn('[MySQL Query Warning, using local database engine]:', err?.message || err);
-      if (sqlJsDb) {
-        return (await querySqlite(sql, params)) as T;
-      }
-      throw err;
-    }
-  } else if (sqlJsDb) {
-    return (await querySqlite(sql, params)) as T;
-  } else {
-    throw new Error(`Database Connection Failed: Unable to connect to MySQL database at ${dbConfig.host}:${dbConfig.port} (database: ${dbConfig.database}). Local SQL database engine is also uninitialized.`);
+  try {
+    const [rows] = await pool.execute(sql, params);
+    return rows as T;
+  } catch (err: any) {
+    throw new Error(`MySQL Database Error: ${err.message} (Host: ${dbConfig.host}:${dbConfig.port}, Database: ${dbConfig.database})`);
   }
 }
 
@@ -286,16 +253,11 @@ async function getResolvedFyId(fyParam?: any): Promise<number | null> {
 }
 
 async function startServer() {
-  // Test MySQL connection & initialize database engine fallback
   try {
-    const conn = await pool.getConnection();
-    await conn.ping();
-    conn.release();
-    isMysqlConnected = true;
-    console.log('[MySQL Driver]: Successfully connected to MySQL server at', dbConfig.host);
+    await initMysqlDatabase();
   } catch (err: any) {
-    console.warn('[MySQL Connection Warning]: MySQL daemon unavailable on localhost. Launching embedded SQL database engine...');
-    await initSqliteEngine();
+    console.error('[MySQL Connection Error]: Unable to connect to MySQL database:', err.message);
+    console.error('Please verify process.env.DB_HOST / MYSQL_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT credentials.');
   }
 
   const app = express();
@@ -308,12 +270,12 @@ async function startServer() {
       const batches = await dbQuery<RowDataPacket[]>('SELECT COUNT(*) as count FROM stock_batches');
       res.json({
         status: 'ok',
-        mode: isMysqlConnected ? 'MySQL Native Driver (Node.js mysql2)' : 'Embedded SQL Database Engine (SQLite / MySQL Driver Fallback)',
+        mode: 'MySQL Database Engine (Node.js mysql2)',
         activeUsers: users[0]?.count || 0,
         activeBatches: batches[0]?.count || 0
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+      res.status(500).json({ success: false, mode: 'MySQL', error: err.message });
     }
   });
 
@@ -330,9 +292,10 @@ async function startServer() {
 
       res.json({
         success: true,
-        connected: true,
-        engine: isMysqlConnected ? 'MySQL Database (Node.js mysql2)' : 'Embedded SQL Database Engine (Local SQLite / MySQL Compatible)',
-        host: isMysqlConnected ? dbConfig.host : 'Local Database Engine',
+        connected: isMysqlConnected,
+        engine: 'MySQL Database (Node.js mysql2)',
+        host: dbConfig.host,
+        port: dbConfig.port,
         database: dbConfig.database,
         tables: {
           users: users[0]?.count || 0,
@@ -406,10 +369,11 @@ async function startServer() {
 
       // 1. Ensure Roles exist
       await dbQuery(`
-        INSERT OR IGNORE INTO roles (id, name, description) VALUES
+        INSERT INTO roles (id, name, description) VALUES
         (1, 'ADMIN', 'System Director with full administrative permissions'),
         (2, 'STORE_KEEPER', 'Chief Store Keeper with Stock In/Out and inventory authority'),
-        (3, 'STAFF_RECEIVER', 'Staff Lead authorized to request and receive department inventory');
+        (3, 'STAFF_RECEIVER', 'Staff Lead authorized to request and receive department inventory')
+        ON DUPLICATE KEY UPDATE description = VALUES(description);
       `);
 
       // 2. Insert primary department
@@ -442,8 +406,9 @@ async function startServer() {
       const endVal = endDate || '2026-03-31';
 
       await dbQuery(
-        `INSERT OR IGNORE INTO financial_years (label, start_date, end_date, is_active, is_closed)
-         VALUES (?, ?, ?, 1, 0)`,
+        `INSERT INTO financial_years (label, start_date, end_date, is_active, is_closed)
+         VALUES (?, ?, ?, 1, 0)
+         ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)`,
         [fyLabelVal, startVal, endVal]
       );
 
@@ -991,10 +956,14 @@ async function startServer() {
       const batchId = batchRes.insertId;
 
       if (isSerialized) {
-        const serials: string[] = Array.isArray(body.serialNumbers) ? body.serialNumbers : [];
+        const rawSerials = body.serials || body.serialNumbers || body.serialsList || body.serial_numbers;
+        const serials: string[] = Array.isArray(rawSerials)
+          ? rawSerials
+          : (typeof rawSerials === 'string' ? rawSerials.split(/[\n,]/).map(s => s.trim()).filter(Boolean) : []);
+
         for (let i = 0; i < totalQty; i++) {
           const itemCode = `ITM-${batchNumber}-${i + 1}`;
-          const serial = serials[i] || `SN-${batchNumber}-${i + 1}`;
+          const serial = (serials[i] && serials[i].trim().length > 0) ? serials[i].trim() : `SN-${batchNumber}-${i + 1}`;
           await dbQuery(
             `INSERT INTO inventory_items (batch_id, item_code, serial_number, category_id, department_id, financial_year_id, status, unit_cost)
              VALUES (?, ?, ?, ?, ?, ?, 'IN_STOCK', ?)`,
