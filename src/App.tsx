@@ -8,6 +8,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LoginView } from './components/LoginView';
+import { SetupWizard } from './components/SetupWizard';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { DashboardView } from './views/DashboardView';
 import { StockInView } from './views/StockInView';
@@ -59,6 +60,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSetupRequired, setIsSetupRequired] = useState<boolean>(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
   const getAuthHeaders = (user = currentUser) => ({
@@ -78,7 +80,7 @@ export default function App() {
         return {
           ok: false,
           success: false,
-          error: 'Database Connection Failed: Backend returned HTML or non-JSON response instead of database data. Ensure php_apis/db_connection.php is properly configured.'
+          error: 'Database Connection Failed: Backend returned non-JSON response instead of database data. Ensure MySQL server is running and node mysql2 connection is configured.'
         };
       }
       if (typeof data === 'object' && data !== null) {
@@ -194,6 +196,17 @@ export default function App() {
   const loadAllData = async () => {
     try {
       setIsLoading(true);
+
+      // Check if First-Time Setup is required
+      const setupStatus = await safeFetchJson('/api/setup/status');
+      if (setupStatus.success && setupStatus.setupRequired) {
+        setIsSetupRequired(true);
+        setIsLoading(false);
+        return;
+      } else {
+        setIsSetupRequired(false);
+      }
+
       const [
         usersRes,
         deptRes,
@@ -218,7 +231,7 @@ export default function App() {
           fyRes.error ||
           settRes.error ||
           auditRes.error ||
-          'Database Connection Failed: Unable to connect to MySQL database via php_apis/db_connection.php';
+          'Database Connection Failed: Unable to connect to MySQL database via Node.js server';
         setDbError(errorDetail);
         return;
       } else {
@@ -595,19 +608,19 @@ export default function App() {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-white tracking-tight">Database Connection Failed</h2>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Database connection is managed strictly via <code className="text-amber-300 font-mono">php_apis/db_connection.php</code> using PDO. All static fallback data has been removed, and connection could not be established.
+              Database connection is managed strictly via Node.js <code className="text-amber-300 font-mono">mysql2</code> driver. All static fallback data has been removed, and connection could not be established.
             </p>
           </div>
           <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 text-left font-mono text-xs text-red-400 font-semibold space-y-1 overflow-x-auto">
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">PHP PDO / MySQL Connection Error</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-sans">MySQL Connection Error</div>
             <div className="break-words">{dbError}</div>
           </div>
           <div className="bg-slate-950/50 border border-slate-800/80 rounded-xl p-3 text-left space-y-1.5 text-xs text-slate-300">
-            <div className="font-semibold text-slate-200 text-[11px] uppercase tracking-wider">PHP Database Connection Script:</div>
+            <div className="font-semibold text-slate-200 text-[11px] uppercase tracking-wider">Node.js MySQL Database Driver:</div>
             <div className="font-mono text-[11px] text-slate-400 space-y-0.5">
-              <div>File: <span className="text-slate-200">php_apis/db_connection.php</span></div>
-              <div>Connection Mode: <span className="text-emerald-400">PDO MySQL</span></div>
-              <div>Host Config: <span className="text-slate-300">$db_host (DB_HOST / MYSQL_HOST)</span></div>
+              <div>Engine: <span className="text-slate-200">Node.js mysql2/promise</span></div>
+              <div>Database: <span className="text-emerald-400">stockvault_db</span></div>
+              <div>Host Config: <span className="text-slate-300">DB_HOST / MYSQL_HOST</span></div>
             </div>
           </div>
           <button
@@ -633,9 +646,29 @@ export default function App() {
     );
   }
 
+  // First-time System Setup Check
+  if (isSetupRequired) {
+    return (
+      <SetupWizard
+        onSetupComplete={(newAdminUser) => {
+          setIsSetupRequired(false);
+          setCurrentUser(newAdminUser);
+          localStorage.setItem('stockvault_active_user', JSON.stringify(newAdminUser));
+          loadAllData();
+        }}
+      />
+    );
+  }
+
   // System Lock: If no user is authenticated, force render Login Screen ONLY
   if (!currentUser) {
-    return <LoginView onLogin={handleLogin} isLoading={isAuthenticating} />;
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        isLoading={isAuthenticating}
+        onLaunchSetup={() => setIsSetupRequired(true)}
+      />
+    );
   }
 
   const activeFy = financialYears.find(f => f.id === activeFyId);

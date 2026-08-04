@@ -16,9 +16,10 @@ import { User } from '../types';
 interface LoginViewProps {
   onLogin: (usernameInput: string, passwordInput: string) => Promise<void>;
   isLoading: boolean;
+  onLaunchSetup?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isLoading }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isLoading, onLaunchSetup }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -144,6 +145,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, isLoading }) => {
               <Lock className="w-4 h-4" />
               <span>{isLoading ? 'Authenticating System...' : 'Log In to Enterprise Console'}</span>
             </button>
+
+            {onLaunchSetup && (
+              <button
+                type="button"
+                onClick={onLaunchSetup}
+                className="w-full text-center text-xs text-slate-400 hover:text-sky-400 pt-2 transition-colors flex items-center justify-center gap-1 font-medium"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" /> Need First-Time Database Setup? Click Here
+              </button>
+            )}
 
           </form>
 
